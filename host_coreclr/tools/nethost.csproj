@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>library</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETCore.DotNetHost" Version="3.1.6" />
+  </ItemGroup>
+
+  <Target Name="BuildNativeProject" AfterTargets="Build">
+      <PropertyGroup>
+        <NativeBinDir>$(BinRoot)/$(Configuration)</NativeBinDir>
+        <NetHostDir>$(NetCoreTargetingPackRoot)/Microsoft.NETCore.App.Host.$(NETCoreSdkRuntimeIdentifier)/$(BundledNETCoreAppPackageVersion)/runtimes/$(NETCoreSdkRuntimeIdentifier)/native</NetHostDir>
+
+        <NetHostName Condition="$([MSBuild]::IsOsPlatform('Windows'))">nethost.lib</NetHostName>
+        <NetHostName Condition="$([MSBuild]::IsOsPlatform('Linux'))">libnethost.a</NetHostName>
+        <NetHostName Condition="$([MSBuild]::IsOsPlatform('OSX'))">libnethost.a</NetHostName>
+      </PropertyGroup>
+
+      <!-- Copy the nethost library to the demo directory -->
+      <Copy SourceFiles="$(NetHostDir)/$(NetHostName)"
+            DestinationFolder="$(MSBuildProjectDirectory)/../lib"
+            SkipUnchangedFiles="False" />
+
+      <Copy SourceFiles="$(NetHostDir)/nethost.h"
+            DestinationFolder="$(MSBuildProjectDirectory)/../lib"
+            SkipUnchangedFiles="False" />
+
+      <RemoveDir Directories="obj" />
+      <RemoveDir Directories="bin" />
+    </Target>
+</Project>

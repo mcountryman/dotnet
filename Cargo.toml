@@ -1,0 +1,4 @@
+[workspace]
+members = [
+  "host_coreclr"
+]
