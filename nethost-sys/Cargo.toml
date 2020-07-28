@@ -1,0 +1,12 @@
+[package]
+name = "nethost-sys"
+version = "0.1.0"
+authors = ["Marvin Countryman <marvinc@siqinc.com>"]
+edition = "2018"
+
+[lib]
+name = "nethost_sys"
+crate-type = ["rlib", "cdylib"]
+
+[build-dependencies]
+bindgen = "0.54.1"

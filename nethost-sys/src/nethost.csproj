@@ -15,16 +15,16 @@
 
         <NetHostName Condition="$([MSBuild]::IsOsPlatform('Windows'))">nethost.lib</NetHostName>
         <NetHostName Condition="$([MSBuild]::IsOsPlatform('Linux'))">libnethost.a</NetHostName>
-        <NetHostName Condition="$([MSBuild]::IsOsPlatform('OSX'))">libnethost.a</NetHostName>
+        <NetHostName Condition="$([MSBuild]::IsOsPlatform('OSX'))">libnethost.dylib</NetHostName>
       </PropertyGroup>
 
       <!-- Copy the nethost library to the demo directory -->
       <Copy SourceFiles="$(NetHostDir)/$(NetHostName)"
-            DestinationFolder="$(MSBuildProjectDirectory)/../lib"
+            DestinationFolder="$(OUT_DIR)"
             SkipUnchangedFiles="False" />
 
       <Copy SourceFiles="$(NetHostDir)/nethost.h"
-            DestinationFolder="$(MSBuildProjectDirectory)/../lib"
+            DestinationFolder="$(OUT_DIR)"
             SkipUnchangedFiles="False" />
 
       <RemoveDir Directories="obj" />

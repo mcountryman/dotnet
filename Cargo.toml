@@ -1,4 +1,6 @@
 [workspace]
 members = [
-  "host_coreclr"
+  "nethost",
+  "nethost-sys",
+  "hostfxr",
 ]
