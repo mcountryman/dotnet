@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn Error>> {
   let native = get_absolute("../vendor/dotnet/runtime/eng/native")?;
   let corhost = get_absolute("../vendor/dotnet/runtime/src/installer/corehost")?;
 
-  // Build dotnet corehost CMakeList.txt
+  // Build dotnet hostfxr CMakeList.txt
   let target = cmake::Config::new(corhost)
     .define("CLR_CMAKE_HOST_ARCH", arch)
     .define("CLR_ENG_NATIVE_DIR", native)
@@ -40,7 +40,8 @@ fn main() -> Result<(), Box<dyn Error>> {
   let bindings = bindgen::builder()
     .header(target.join("corehost/nethost.h").to_str().unwrap())
     .whitelist_type("get_hostfxr_parameters")
-    .whitelist_type("get_hostfxr_path")
+    .whitelist_function("get_hostfxr_path")
+    .parse_callbacks(Box::new(bindgen::CargoCallbacks))
     .generate()
     .unwrap();
 

@@ -1,5 +1,5 @@
 [workspace]
 members = [
-  "corehost",
-  "corehost_sys",
+  "hostfxr",
+  "hostfxr_sys",
 ]
