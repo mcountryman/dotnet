@@ -1,3 +1,4 @@
+use hostfxr_sys::HRESULT;
 use std::error::Error;
 use std::ffi::{CString, OsStr};
 use std::mem;
@@ -5,10 +6,12 @@ use std::ops::Deref;
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ptr::null_mut;
 
+use crate::hresult::HResult;
 #[cfg(unix)]
 use libloading::os::unix::{Library, Symbol};
 #[cfg(windows)]
 use libloading::os::unix::{Library, Symbol};
+use std::path::Path;
 
 pub struct HostFxrLibrary {
   init_symbol: Symbol<InitializeForRuntimeConfigFn>,
@@ -38,29 +41,30 @@ impl HostFxrLibrary {
     })
   }
 
-  pub fn initialize(
+  pub fn initialize<P: AsRef<Path>>(
     &self,
-    runtime_config_path: &str,
+    runtime_config_path: P,
   ) -> Result<FxrContextHandle, Box<dyn Error>> {
     let mut handle = null_mut();
+    let runtime_config_path = runtime_config_path.as_ref().to_str().unwrap();
     let runtime_config_path = CString::new(runtime_config_path)?;
     let runtime_config_path = runtime_config_path.as_ptr();
     let initialize = self.init_symbol.deref();
     let close = self.close_symbol.deref();
 
     unsafe {
-      let result = initialize(runtime_config_path, null_mut(), &mut handle);
-      if result < 0 {
+      let result = HResult::new(initialize(runtime_config_path, null_mut(), &mut handle));
+      if result.is_failure() {
         close(handle);
-        bail!("Failed to initialize HostFxrContext {}", result);
+        result.to_result()?;
       }
     }
 
     Ok(handle)
   }
 
-  pub fn close(&self, host_context_handle: FxrContextHandle) -> i32 {
-    unsafe { self.close_symbol.deref()(host_context_handle) }
+  pub fn close(&self, host_context_handle: FxrContextHandle) -> HResult {
+    unsafe { HResult::new(self.close_symbol.deref()(host_context_handle)) }
   }
 
   pub fn get_load_assembly_fn(
@@ -69,17 +73,14 @@ impl HostFxrLibrary {
   ) -> Result<LoadAssemblyAndGetFunctionPointer, Box<dyn Error>> {
     let mut load_assembly_fn = null_mut();
     let get_runtime_delegate = self.get_delegate_symbol.deref();
-    let result = unsafe {
+    let result = HResult::new(unsafe {
       get_runtime_delegate(
         host_context_handle,
         DelegateType::LoadAssemblyAndGetFunctionPointer,
         &mut load_assembly_fn,
       )
-    };
-
-    if result < 0 {
-      bail!("Failed to get load_assembly_fn {}", result);
-    }
+    })
+    .to_result()?;
 
     Ok(unsafe { mem::transmute(load_assembly_fn) })
   }
@@ -89,8 +90,14 @@ impl HostFxrLibrary {
     host_context_handle: FxrContextHandle,
     type_: DelegateType,
     delegate: *mut *mut c_void,
-  ) -> i32 {
-    unsafe { self.get_delegate_symbol.deref()(host_context_handle, type_, delegate) }
+  ) -> HResult {
+    unsafe {
+      HResult::new(self.get_delegate_symbol.deref()(
+        host_context_handle,
+        type_,
+        delegate,
+      ))
+    }
   }
 }
 
@@ -115,7 +122,7 @@ pub struct InitializeParameters {
 
 pub type FxrContextHandle = *mut c_void;
 
-pub type MainFn = unsafe extern "C" fn(argc: i32, argv: *mut *const c_char) -> i32;
+pub type MainFn = unsafe extern "C" fn(argc: i32, argv: *mut *const c_char) -> HRESULT;
 pub type ErrorWriterFn = unsafe extern "C" fn(message: *const c_char);
 pub type SetErrorWriterFn = unsafe extern "C" fn(error_writer: ErrorWriterFn) -> ErrorWriterFn;
 
@@ -124,41 +131,41 @@ pub type InitializeForDotnetCommandLineFn = unsafe extern "C" fn(
   argv: *mut *const c_char,
   parameters: *const InitializeParameters,
   host_context_handle: *mut FxrContextHandle,
-) -> i32;
+) -> HRESULT;
 
 pub type InitializeForRuntimeConfigFn = unsafe extern "C" fn(
   runtime_config_path: *const c_char,
   parameters: *const InitializeParameters,
   host_context_handle: *mut FxrContextHandle,
-) -> i32;
+) -> HRESULT;
 
 pub type GetRuntimePropertyValueFn = unsafe extern "C" fn(
   host_context_handle: FxrContextHandle,
   name: *const c_char,
   value: *mut *const c_char,
-) -> i32;
+) -> HRESULT;
 
 pub type SetRuntimePropertyValueFn = unsafe extern "C" fn(
   host_context_handle: FxrContextHandle,
   name: *const c_char,
   value: *const c_char,
-) -> i32;
+) -> HRESULT;
 
 pub type GetRuntimePropertiesFn = unsafe extern "C" fn(
   host_context_handle: FxrContextHandle,
   count: *mut c_ulong,
   keys: *mut *const c_char,
   values: *mut *const c_char,
-) -> i32;
+) -> HRESULT;
 
-pub type RunAppFn = unsafe extern "C" fn(host_context_handle: FxrContextHandle) -> i32;
+pub type RunAppFn = unsafe extern "C" fn(host_context_handle: FxrContextHandle) -> HRESULT;
 pub type GetRuntimeDelegateFn = unsafe extern "C" fn(
   host_context_handle: FxrContextHandle,
   type_: DelegateType,
   delegate: *mut *mut c_void,
-) -> i32;
+) -> HRESULT;
 
-pub type CloseFn = unsafe extern "C" fn(host_context_handle: FxrContextHandle) -> i32;
+pub type CloseFn = unsafe extern "C" fn(host_context_handle: FxrContextHandle) -> HRESULT;
 
 // Signature of delegate returned by coreclr_delegate_type::load_assembly_and_get_function_pointer
 pub type LoadAssemblyAndGetFunctionPointer = unsafe extern "C" fn(
@@ -168,4 +175,4 @@ pub type LoadAssemblyAndGetFunctionPointer = unsafe extern "C" fn(
   delegate_type_name: *const c_char,
   reserved: *const c_void,
   delegate: *mut *mut c_void,
-) -> i32;
+) -> HRESULT;
