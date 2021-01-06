@@ -32,35 +32,12 @@ fn main() -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
-/// Build coreclr using cmake
-fn build_coreclr(root: &PathBuf) -> Result<PathBuf, Box<dyn Error>> {
-  let arch = get_arch()?;
-  let hash = get_commit_hash(root.join("../vendor/dotnet/runtime"))?;
-
-  let native = root.join("../vendor/dotnet/runtime/eng/native");
-  let corhost = root.join("../vendor/dotnet/runtime/src/installer/corehost");
-
-  Ok(
-    cmake::Config::new(corhost)
-      .define("CLR_CMAKE_HOST_ARCH", arch)
-      .define("CLR_ENG_NATIVE_DIR", native)
-      .define("CLI_CMAKE_HOST_POLICY_VER", "3.0.0")
-      .define("CLI_CMAKE_HOST_FXR_VER", "3.0.0")
-      .define("CLI_CMAKE_HOST_VER", "3.0.0")
-      .define("CLI_CMAKE_COMMON_HOST_VER", "3.0.0")
-      .define("CLI_CMAKE_PKG_RID", "3.0.0")
-      .define("CLI_CMAKE_COMMIT_HASH", hash)
-      .define("CLI_CMAKE_PORTABLE_BUILD", "1")
-      .build(),
-  )
-}
-
-/// Build nethost bindings using bindgen
+/// Attempts to create bindings for `nethost.h` inside supplied path `target`
 fn build_bindgen(target: &PathBuf) -> Result<(), Box<dyn Error>> {
   let out = env::var("OUT_DIR")?;
   let out = PathBuf::from(out);
   let bindings = bindgen::builder()
-    .header(target.join("corehost/nethost.h").to_str().unwrap())
+    .header(target.join("nethost.h").to_str().unwrap())
     .whitelist_type("get_hostfxr_parameters")
     .whitelist_function("get_hostfxr_path")
     .parse_callbacks(Box::new(bindgen::CargoCallbacks))
@@ -122,29 +99,6 @@ fn build_corerror(root: &PathBuf) -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
-/// Get target architecture
-fn get_arch() -> Result<String, Box<dyn Error>> {
-  let arch = env::var("CARGO_CFG_TARGET_ARCH")?;
-  match arch.as_str() {
-    "x86_64" => Ok("AMD64".to_string()),
-    arch => Ok(arch.to_string()),
-  }
-}
-
-/// Get git commit hash for path
-fn get_commit_hash<P: AsRef<Path>>(path: P) -> Result<String, Box<dyn Error>> {
-  Ok(
-    String::from_utf8(
-      Command::new("git")
-        .arg("rev-parse")
-        .arg("HEAD")
-        .current_dir(path)
-        .stdout(Stdio::piped())
-        .spawn()?
-        .wait_with_output()?
-        .stdout,
-    )?
-    .trim()
-    .to_owned(),
-  )
+fn downlaod(name: &str, version: &str) {
+  let url = format!("https://www.nuget.org/api/v2/package/{}/{}", name, version);
 }
