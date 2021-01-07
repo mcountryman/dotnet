@@ -7,6 +7,5 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-libloading = "0.6.2"
-hostfxr_sys = { path = "../hostfxr_sys" }
-simple-error = "0.2.1"
+libloading = "^0.6"
+hostfxr_sys = "^0.1"

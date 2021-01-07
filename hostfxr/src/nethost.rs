@@ -1,43 +1,67 @@
-use std::error::Error;
-use std::ffi::{CStr, CString};
 use std::ptr::null_mut;
+use std::string::FromUtf16Error;
 
-/// This API locates the hostfxr library and returns its path
-pub fn get_hostfxr_path() -> Result<CString, Box<dyn Error>> {
-  const MAX_PATH: usize = 260;
+/// MAX_PATH defines buffer size supplied to nethost.  This should be more than enough
+/// given that hostfxr will most likely be installed by an installer provided by Microsoft
+/// into a common binary directory.
+///
+/// Good places to test are in environments with NIX or xbps package managers.
+const MAX_PATH: usize = 4096;
 
-  let mut hostfxr_length = MAX_PATH as u64;
-  let hostfxr_parameters = null_mut();
+#[derive(Debug)]
+pub enum GetHostFxrError {
+  /// Nethost returned non-zero status code.
+  Unexpected(i32),
+  /// Nethost provided invalid utf16 string indicating that nethost was not built with
+  /// unicode support.
+  InvalidUtf16(FromUtf16Error),
+  /// Hostfxr path exceeds hardcoded path size of `4096`.
+  InvalidBufferSize,
+}
 
-  unsafe {
-    let mut hostfxr_path_buffer = [0u8; MAX_PATH + 1];
-    let result = hostfxr_sys::get_hostfxr_path(
-      hostfxr_path_buffer.as_mut_ptr() as *mut i8,
-      &mut hostfxr_length,
-      hostfxr_parameters,
-    );
+/// Get `hostfxr` dynamic library path on system using global registration or environment
+/// variables.
+pub fn get_hostfxr() -> Result<String, GetHostFxrError> {
+  let mut buf = vec![0; MAX_PATH];
+  let mut buf_len = buf.len() as u64;
+  let code = unsafe {
+    hostfxr_sys::get_hostfxr_path(buf.as_mut_ptr(), &mut buf_len as *mut _, null_mut())
+  };
 
-    if result < 0 {
-      bail!("get_hostfxr_path failed with HRESULT {}", result);
-    }
-
-    let hostfxr_path_buffer = &hostfxr_path_buffer[0..hostfxr_length as usize];
-    let hostfxr_path = CStr::from_bytes_with_nul(&hostfxr_path_buffer)?;
-    let hostfxr_path = CString::from(hostfxr_path);
-
-    Ok(hostfxr_path)
+  // Check status code for `HostApiBufferTooSmall`
+  #[allow(overflowing_literals)]
+  if code == 0x80008098 as i32 {
+    return Err(GetHostFxrError::InvalidBufferSize);
   }
+
+  // Check status code for non-success
+  if code != 0 {
+    return Err(GetHostFxrError::Unexpected(code));
+  }
+
+  // Attempt to decode from utf16
+  String::from_utf16(&buf[..buf_len as usize - 1]).map_err(GetHostFxrError::InvalidUtf16)
 }
 
 #[cfg(test)]
 mod tests {
-  use crate::nethost::get_hostfxr_path;
+  use std::path::Path;
+
+  use super::get_hostfxr;
 
   #[test]
-  fn test_get_hostfxr_path() {
-    let path = get_hostfxr_path().expect("Failed to resolve hostfxr path");
-    let path = String::from(path.to_str().unwrap());
+  fn test_get_hostfxr() {
+    let hostfxr = get_hostfxr().unwrap();
+    let hostfxr = Path::new(&hostfxr);
+    let hostfxr = hostfxr
+      .file_name()
+      .expect("Expected filename")
+      .to_string_lossy();
 
-    assert!(path.contains("hostfxr"));
+    match std::env::consts::OS {
+      "macos" => assert_eq!(hostfxr, "hostfxr.dylib"),
+      "windows" => assert_eq!(hostfxr, "hostfxr.dll"),
+      _ => assert_eq!(hostfxr, "hostfxr.so"),
+    };
   }
 }

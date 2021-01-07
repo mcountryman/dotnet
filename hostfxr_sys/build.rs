@@ -4,7 +4,6 @@ use std::io::{self, Cursor};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use anyhow::{bail, Result};
 use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
 use zip::ZipArchive;
 
@@ -17,18 +16,16 @@ use zip::ZipArchive;
 /// 5. Dynamically link c++ runtime.
 ///   TODO: Maybe we should give the user the option for dynamic/static...
 fn main() {
-  let target = download_runtime("5.0.1").unwrap();
+  let target = install_package("5.0.1");
   let target = Path::new(&target);
-
-  // Link nethost static library
-  println!("cargo:rustc-link-search=native={}", target.display());
-  println!("cargo:rustc-link-lib=static=nethost");
 
   let out = env::var("OUT_DIR").expect("`$OUT_DIR` not defined.");
   let out = PathBuf::from(out);
 
   bindgen::builder()
     .header(target.join("nethost.h").to_str().unwrap())
+    .header(target.join("hostfxr.h").to_str().unwrap())
+    // Derives
     .derive_copy(true)
     .derive_debug(true)
     .derive_default(true)
@@ -36,26 +33,12 @@ fn main() {
     .derive_ord(true)
     .derive_partialeq(true)
     .derive_partialord(true)
+    // Comments
     .generate_comments(true)
+    // Whitelist nethost.h items
     .whitelist_type("get_hostfxr_parameters")
     .whitelist_function("get_hostfxr_path")
-    .parse_callbacks(Box::new(bindgen::CargoCallbacks))
-    .generate()
-    .unwrap()
-    .write_to_file(out.join("nethost.rs"))
-    .unwrap();
-
-  bindgen::builder()
-    .header(target.join("hostfxr.h").to_str().unwrap())
-    .derive_copy(true)
-    .derive_debug(true)
-    .derive_default(true)
-    .derive_eq(true)
-    .derive_ord(true)
-    .derive_partialeq(true)
-    .derive_partialord(true)
-    .generate_comments(true)
-    .dynamic_library_name("hostfxr")
+    // Whitelist hostfxr.h items
     .whitelist_type("hostfxr_delegate_type")
     .whitelist_type("hostfxr_initialize_parameters")
     .whitelist_type("hostfxr_main_fn")
@@ -74,82 +57,126 @@ fn main() {
     .whitelist_type("hostfxr_close_fn")
     .parse_callbacks(Box::new(bindgen::CargoCallbacks))
     .generate()
-    .unwrap()
-    .write_to_file(out.join("hostfxr.rs"))
-    .unwrap();
+    .expect("Failed to generate bindings")
+    .write_to_file(out.join("bindings.rs"))
+    .expect("Failed to write bindings");
+
+  // Link nethost static library
+  println!("cargo:rustc-link-search=native={}", target.display());
+  link("nethost");
 
   // Link c++ runtime
-  match env::var("CARGO_CFG_TARGET_OS").expect("").as_str() {
-    "macos" | "ios" => println!("cargo:rustc-link-lib=dylib=c++"),
-    _ => println!("cargo:rustc-link-lib=dylib=vcruntime"),
+  match &env::var("CARGO_CFG_TARGET_OS").expect("`$CARGO_CFG_TARGET_OS` undefined")[..] {
+    "ios" => link("c++"),
+    "macos" => link("c++"),
+    _ => link("vcruntime"),
   };
 }
 
-/// Download and extract native folder from runtime nupkg to `$OUT_DIR/native`
-fn download_runtime(version: &str) -> Result<String> {
-  let target = get_runtime_from_target(&env::var("TARGET")?)?;
-  let package_name = format!("runtime.{}.Microsoft.NETCore.DotNetAppHost", target);
-  let mut package = fetch_package(&package_name, version)?;
+fn link(name: &str) {
+  if get_link_static(name) {
+    println!("cargo:rustc-link-lib=static={}", name)
+  } else {
+    println!("cargo:rustc-link-lib=dylib={}", name)
+  }
+}
 
-  let out_path = format!("{}/native", &env::var("OUT_DIR")?);
+/// Determines if library should be linked statically.
+///
+/// 1. Check env var `$name_STATIC`
+/// 2. Check feature flag `static`
+/// 3. Check if non-musl linux
+fn get_link_static(name: &str) -> bool {
+  // Environment item overrides all
+  if env::var(format!("{}_STATIC", name)).is_ok() {
+    return true;
+  }
+
+  if cfg!(feature = "static") {
+    return true;
+  }
+
+  let target = env::var("TARGET").expect("`$TARGET` undefined");
+  let target = Triple::from_str(&target).unwrap();
+
+  match target.operating_system {
+    OperatingSystem::Linux => matches!(target.environment, Environment::Musl),
+    OperatingSystem::Windows => false,
+    _ => true,
+  }
+}
+
+/// Download and extract native folder from runtime nupkg to `$OUT_DIR/native`
+fn install_package(version: &str) -> String {
+  let target = env::var("TARGET").expect("`$TARGET` undefined");
+  let out_dir = env::var("OUT_DIR").expect("`$OUT_DIR` undefined");
+
+  let target = get_runtime_from_target(&target);
+  let package_name = format!("runtime.{}.Microsoft.NETCore.DotNetAppHost", target);
+  let mut package = fetch_package(&package_name, version);
+
+  let out_path = format!("{}/native", &out_dir);
   let native_path = format!("runtimes/{}/native", target);
 
-  std::fs::create_dir_all(&out_path)?;
+  std::fs::create_dir_all(&out_path)
+    .unwrap_or_else(|_| panic!("Failed to create `{}` dir", &out_path));
 
   for i in 0..package.len() {
-    let mut file = package.by_index(i)?;
+    let mut file = package.by_index(i).unwrap();
     if file.name().to_lowercase().starts_with(&native_path) {
       let to = format!("{}/{}", out_path, file.name().replace(&native_path, ""));
-      let mut to = File::create(to)?;
+      let mut to = File::create(to)
+        .unwrap_or_else(|_| panic!("Failed to extract `{}`", file.name()));
 
-      io::copy(&mut file, &mut to)?;
+      io::copy(&mut file, &mut to)
+        .unwrap_or_else(|_| panic!("Failed to extract `{}`", file.name()));
     }
   }
 
-  Ok(out_path.to_owned())
+  out_path
 }
 
 /// Download package from name / version.
-fn fetch_package(name: &str, version: &str) -> Result<ZipArchive<Cursor<Vec<u8>>>> {
+fn fetch_package(name: &str, version: &str) -> ZipArchive<Cursor<Vec<u8>>> {
   let url = format!("https://www.nuget.org/api/v2/package/{}/{}", name, version);
   let mut buf = Cursor::new(vec![]);
 
   match ureq::get(&url).call() {
     Ok(res) => {
       let mut read = res.into_reader();
-      io::copy(&mut read, &mut buf)?;
+      io::copy(&mut read, &mut buf).expect("Failed to read response");
     }
-    Err(err) => bail!("Failed to fetch package '{}:{}' {:?}", name, version, err),
+    Err(err) => panic!("Failed to fetch package '{}:{}' {:?}", name, version, err),
   }
 
-  Ok(ZipArchive::new(buf)?)
+  ZipArchive::new(buf).expect("Nuget package not a zip file")
 }
 
 /// Resolve .NET runtime target name from supplied target triple.
 ///
 /// # Notice
 /// Tizen is not supported here.  I might add in the future if that's even possible.
-fn get_runtime_from_target(target: &str) -> Result<String> {
+fn get_runtime_from_target(target: &str) -> String {
   let target = Triple::from_str(target).unwrap();
 
-  let arch = match &target.architecture {
-    &Architecture::X86_64 => "x64",
-    &Architecture::X86_32(_) => "x86",
-    &Architecture::Arm(_) => "arm",
-    &Architecture::Aarch64(_) => "arm64",
-    _ => bail!("Unsupported arch '{}'", &target.architecture),
+  let arch = match target.architecture {
+    Architecture::X86_64 => "x64",
+    Architecture::X86_32(_) => "x86",
+    Architecture::Arm(_) => "arm",
+    Architecture::Aarch64(_) => "arm64",
+    _ => panic!("Unsupported arch '{}'", &target.architecture),
   };
 
-  let host = match &target.operating_system {
-    &OperatingSystem::Linux => match &target.environment {
-      &Environment::Musl => "linux-musl",
+  let host = match target.operating_system {
+    OperatingSystem::Linux => match target.environment {
+      Environment::Musl => "linux-musl",
       _ => "linux",
     },
-    &OperatingSystem::Windows => "win",
-    &OperatingSystem::MacOSX { .. } => "osx",
-    &OperatingSystem::Freebsd => "freebsd",
-    _ => bail!("Unsupported os '{}'", &target.operating_system),
+    OperatingSystem::Windows => "win",
+    OperatingSystem::MacOSX { .. } => "osx",
+    OperatingSystem::Freebsd => "freebsd",
+    _ => panic!("Unsupported os '{}'", &target.operating_system),
   };
 
-  Ok(format!("{}-{}", host, arch))
+  format!("{}-{}", host, arch)
 }

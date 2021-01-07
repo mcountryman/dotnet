@@ -1,4 +1,9 @@
 [workspace]
 members = [
-  "nethost_sys",
+  "hostfxr",
+  "hostfxr_sys",
 ]
+
+[patch.crates-io]
+hostfxr = { path = "./hostfxr" }
+hostfxr_sys = { path = "./hostfxr_sys" }
