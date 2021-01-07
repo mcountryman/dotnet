@@ -1,104 +1,155 @@
 use std::env;
-use std::error::Error;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{self, Cursor};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::str::FromStr;
 
-use regex::Regex;
+use anyhow::{bail, Result};
+use target_lexicon::{Architecture, Environment, OperatingSystem, Triple};
+use zip::ZipArchive;
 
-fn main() -> Result<(), Box<dyn Error>> {
-  let root = env!("CARGO_MANIFEST_DIR");
-  let root = PathBuf::from(root);
-  let target = build_coreclr(&root)?;
-
-  build_bindgen(&target)?;
-  build_corerror(&root)?;
+/// Purpose is as follows
+/// 1. Find nuget package for build target
+///   ie. `x86_64-pc-windows-msvc` -> `runtime.win-x86.Microsoft.NETCore.DotNetAppHost`
+/// 2. Download .nupkg
+/// 3. Extract contents of `runtime/../native` to `$OUT_DIR/native`.
+/// 4. Statically link `nethost`.
+/// 5. Dynamically link c++ runtime.
+///   TODO: Maybe we should give the user the option for dynamic/static...
+fn main() {
+  let target = download_runtime("5.0.1").unwrap();
+  let target = Path::new(&target);
 
   // Link nethost static library
-  println!(
-    "cargo:rustc-link-search=native={}",
-    target.join("corehost").display()
-  );
+  println!("cargo:rustc-link-search=native={}", target.display());
   println!("cargo:rustc-link-lib=static=nethost");
 
-  // Link c++
-  match env::var("CARGO_CFG_TARGET_OS")?.as_str() {
-    "macos" | "ios" => println!("cargo:rustc-link-lib=dylib=c++"),
-    "linux" => println!("cargo:rustc-link-lib=dylib=stdc++"),
-    _ => unimplemented!(),
-  };
-
-  Ok(())
-}
-
-/// Attempts to create bindings for `nethost.h` inside supplied path `target`
-fn build_bindgen(target: &PathBuf) -> Result<(), Box<dyn Error>> {
-  let out = env::var("OUT_DIR")?;
+  let out = env::var("OUT_DIR").expect("`$OUT_DIR` not defined.");
   let out = PathBuf::from(out);
-  let bindings = bindgen::builder()
+
+  bindgen::builder()
     .header(target.join("nethost.h").to_str().unwrap())
+    .derive_copy(true)
+    .derive_debug(true)
+    .derive_default(true)
+    .derive_eq(true)
+    .derive_ord(true)
+    .derive_partialeq(true)
+    .derive_partialord(true)
+    .generate_comments(true)
     .whitelist_type("get_hostfxr_parameters")
     .whitelist_function("get_hostfxr_path")
     .parse_callbacks(Box::new(bindgen::CargoCallbacks))
     .generate()
+    .unwrap()
+    .write_to_file(out.join("nethost.rs"))
     .unwrap();
 
-  bindings.write_to_file(out.join("bindings.rs"))?;
+  bindgen::builder()
+    .header(target.join("hostfxr.h").to_str().unwrap())
+    .derive_copy(true)
+    .derive_debug(true)
+    .derive_default(true)
+    .derive_eq(true)
+    .derive_ord(true)
+    .derive_partialeq(true)
+    .derive_partialord(true)
+    .generate_comments(true)
+    .dynamic_library_name("hostfxr")
+    .whitelist_type("hostfxr_delegate_type")
+    .whitelist_type("hostfxr_initialize_parameters")
+    .whitelist_type("hostfxr_main_fn")
+    .whitelist_type("hostfxr_main_startupinfo_fn")
+    .whitelist_type("hostfxr_main_bundle_startupinfo_fn")
+    .whitelist_type("hostfxr_error_writer_fn")
+    .whitelist_type("hostfxr_set_error_writer_fn")
+    .whitelist_type("hostfxr_handle")
+    .whitelist_type("hostfxr_initialize_for_dotnet_command_line_fn")
+    .whitelist_type("hostfxr_initialize_for_runtime_config_fn")
+    .whitelist_type("hostfxr_get_runtime_property_value_fn")
+    .whitelist_type("hostfxr_set_runtime_property_value_fn")
+    .whitelist_type("hostfxr_get_runtime_properties_fn")
+    .whitelist_type("hostfxr_run_app_fn")
+    .whitelist_type("hostfxr_get_runtime_delegate_fn")
+    .whitelist_type("hostfxr_close_fn")
+    .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+    .generate()
+    .unwrap()
+    .write_to_file(out.join("hostfxr.rs"))
+    .unwrap();
 
-  Ok(())
+  // Link c++ runtime
+  match env::var("CARGO_CFG_TARGET_OS").expect("").as_str() {
+    "macos" | "ios" => println!("cargo:rustc-link-lib=dylib=c++"),
+    _ => println!("cargo:rustc-link-lib=dylib=vcruntime"),
+  };
 }
 
-fn build_corerror(root: &PathBuf) -> Result<(), Box<dyn Error>> {
-  let expr = Regex::new(r"#define\s*([^\s]+)\s*([SE])MAKEHR\(([^)]+)\)")?;
-  let facility_urt = 0x13;
-  let severity_error = 1;
-  let severity_success = 0;
+/// Download and extract native folder from runtime nupkg to `$OUT_DIR/native`
+fn download_runtime(version: &str) -> Result<String> {
+  let target = get_runtime_from_target(&env::var("TARGET")?)?;
+  let package_name = format!("runtime.{}.Microsoft.NETCore.DotNetAppHost", target);
+  let mut package = fetch_package(&package_name, version)?;
 
-  let file =
-    File::open(root.join("../vendor/dotnet/runtime/src/coreclr/src/pal/prebuilt/inc/corerror.h"))?;
-  let lines = BufReader::new(file).lines();
+  let out_path = format!("{}/native", &env::var("OUT_DIR")?);
+  let native_path = format!("runtimes/{}/native", target);
 
-  let out = env::var("OUT_DIR")?;
-  let out = PathBuf::from(out);
-  let mut writer = File::create(out.join("hresult.rs"))?;
-  //let mut writer = BufWriter::new(writer);
+  std::fs::create_dir_all(&out_path)?;
 
-  writeln!(writer, "#[derive(Debug, Copy, Clone)]")?;
-  writeln!(writer, "pub enum HRESULT {{")?;
+  for i in 0..package.len() {
+    let mut file = package.by_index(i)?;
+    if file.name().to_lowercase().starts_with(&native_path) {
+      let to = format!("{}/{}", out_path, file.name().replace(&native_path, ""));
+      let mut to = File::create(to)?;
 
-  for line in lines {
-    if let Ok(line) = line {
-      let matches = expr.captures(line.as_str());
-      if matches.is_none() {
-        continue;
-      }
-
-      let matches = matches.unwrap();
-      let name = matches.get(1).unwrap().as_str();
-      let kind = matches.get(2).unwrap().as_str();
-      let code = matches.get(3).unwrap().as_str();
-      let code = code.trim_start_matches("0x");
-      let code = i32::from_str_radix(code, 16)?;
-      let code = match kind {
-        "S" => severity_success << 31 | facility_urt << 16 | code,
-        "E" => severity_error << 31 | facility_urt << 16 | code,
-        _ => -1,
-      };
-
-      // #define CLDB_S_TRUNCATION SMAKEHR(0x1106)
-      // #define COR_E_TYPEUNLOADED EMAKEHR(0x1013)
-      writeln!(writer, "  {} = {},", name, code)?;
-    } else {
-      break;
+      io::copy(&mut file, &mut to)?;
     }
   }
 
-  writeln!(writer, "}}")?;
-
-  Ok(())
+  Ok(out_path.to_owned())
 }
 
-fn downlaod(name: &str, version: &str) {
+/// Download package from name / version.
+fn fetch_package(name: &str, version: &str) -> Result<ZipArchive<Cursor<Vec<u8>>>> {
   let url = format!("https://www.nuget.org/api/v2/package/{}/{}", name, version);
+  let mut buf = Cursor::new(vec![]);
+
+  match ureq::get(&url).call() {
+    Ok(res) => {
+      let mut read = res.into_reader();
+      io::copy(&mut read, &mut buf)?;
+    }
+    Err(err) => bail!("Failed to fetch package '{}:{}' {:?}", name, version, err),
+  }
+
+  Ok(ZipArchive::new(buf)?)
+}
+
+/// Resolve .NET runtime target name from supplied target triple.
+///
+/// # Notice
+/// Tizen is not supported here.  I might add in the future if that's even possible.
+fn get_runtime_from_target(target: &str) -> Result<String> {
+  let target = Triple::from_str(target).unwrap();
+
+  let arch = match &target.architecture {
+    &Architecture::X86_64 => "x64",
+    &Architecture::X86_32(_) => "x86",
+    &Architecture::Arm(_) => "arm",
+    &Architecture::Aarch64(_) => "arm64",
+    _ => bail!("Unsupported arch '{}'", &target.architecture),
+  };
+
+  let host = match &target.operating_system {
+    &OperatingSystem::Linux => match &target.environment {
+      &Environment::Musl => "linux-musl",
+      _ => "linux",
+    },
+    &OperatingSystem::Windows => "win",
+    &OperatingSystem::MacOSX { .. } => "osx",
+    &OperatingSystem::Freebsd => "freebsd",
+    _ => bail!("Unsupported os '{}'", &target.operating_system),
+  };
+
+  Ok(format!("{}-{}", host, arch))
 }
