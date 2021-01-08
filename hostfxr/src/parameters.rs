@@ -8,8 +8,8 @@ pub enum HostFxrParameters<'a> {
 
 #[derive(Debug, Clone)]
 pub struct HostFxrExtraParameters<'a> {
-  host_path: WideString<'a>,
-  dotnet_root: WideString<'a>,
+  pub host_path: WideString<'a>,
+  pub dotnet_root: WideString<'a>,
 }
 
 impl<'a> HostFxrExtraParameters<'a> {

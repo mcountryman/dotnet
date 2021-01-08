@@ -25,6 +25,7 @@ fn main() {
   bindgen::builder()
     .header(target.join("nethost.h").to_str().unwrap())
     .header(target.join("hostfxr.h").to_str().unwrap())
+    .header(target.join("coreclr_delegates.h").to_str().unwrap())
     // Derives
     .derive_copy(true)
     .derive_debug(true)
@@ -55,6 +56,10 @@ fn main() {
     .whitelist_type("hostfxr_run_app_fn")
     .whitelist_type("hostfxr_get_runtime_delegate_fn")
     .whitelist_type("hostfxr_close_fn")
+    // Whitelist coreclr_delegates.h
+    .whitelist_type("load_assembly_and_get_function_pointer_fn")
+    .whitelist_type("component_entry_point_fn")
+    .whitelist_type("get_function_pointer_fn")
     .parse_callbacks(Box::new(bindgen::CargoCallbacks))
     .generate()
     .expect("Failed to generate bindings")

@@ -226,6 +226,7 @@ name = "hostfxr"
 version = "0.1.0"
 dependencies = [
  "hostfxr_sys",
+ "lazy_static",
  "libloading",
 ]
 

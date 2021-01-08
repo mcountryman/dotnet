@@ -17,6 +17,22 @@ impl<'a> Into<Vec<u16>> for WideString<'a> {
   }
 }
 
+impl<'a> Into<Vec<u8>> for WideString<'a> {
+  fn into(self) -> Vec<u8> {
+    CString::new(self)
+      .expect("CString::new failed to append 0 byte")
+      .into_bytes()
+  }
+}
+
+impl<'a> Into<Vec<u16>> for &'a WideString<'a> {
+  fn into(self) -> Vec<u16> {
+    let mut bytes = Vec::with_capacity(self.0.len() + 1);
+    bytes.extend(self.0.encode_utf16());
+    bytes
+  }
+}
+
 impl<'a> Into<Vec<u8>> for &'a WideString<'a> {
   fn into(self) -> Vec<u8> {
     CString::new(self)

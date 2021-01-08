@@ -21,7 +21,7 @@ pub enum GetHostFxrError {
 
 /// Get `hostfxr` dynamic library path on system using global registration or environment
 /// variables.
-pub fn get_hostfxr() -> Result<String, GetHostFxrError> {
+pub fn get_hostfxr_path() -> Result<String, GetHostFxrError> {
   let mut buf = vec![0; MAX_PATH];
   let mut buf_len = buf.len() as u64;
   let code = unsafe {
@@ -47,11 +47,11 @@ pub fn get_hostfxr() -> Result<String, GetHostFxrError> {
 mod tests {
   use std::path::Path;
 
-  use super::get_hostfxr;
+  use super::get_hostfxr_path;
 
   #[test]
   fn test_get_hostfxr() {
-    let hostfxr = get_hostfxr().unwrap();
+    let hostfxr = get_hostfxr_path().unwrap();
     let hostfxr = Path::new(&hostfxr);
     let hostfxr = hostfxr
       .file_name()

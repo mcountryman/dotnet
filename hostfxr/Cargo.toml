@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 libloading = "^0.6"
+lazy_static = "^1.4"
 hostfxr_sys = "^0.1"
