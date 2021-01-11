@@ -10,3 +10,6 @@ edition = "2018"
 libloading = "^0.6"
 lazy_static = "^1.4"
 hostfxr_sys = "^0.1"
+
+[dev-dependencies]
+wchar = "^0.6"

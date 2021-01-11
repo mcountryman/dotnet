@@ -7,7 +7,9 @@ pub type HostFxrResult<T> = Result<T, HostFxrError>;
 
 #[derive(Debug)]
 pub enum HostFxrError {
+  Io(std::io::Error),
   Library(libloading::Error),
+  Unexpected(i32),
   ImportNotFound,
   MissingHostPath,
   MissingDotnetRoot,

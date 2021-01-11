@@ -1,5 +1,6 @@
+use crate::string::IntoStr;
+use std::ffi::NulError;
 use std::ptr::null_mut;
-use std::string::FromUtf16Error;
 
 /// MAX_PATH defines buffer size supplied to nethost.  This should be more than enough
 /// given that hostfxr will most likely be installed by an installer provided by Microsoft
@@ -12,11 +13,10 @@ const MAX_PATH: usize = 4096;
 pub enum GetHostFxrError {
   /// Nethost returned non-zero status code.
   Unexpected(i32),
-  /// Nethost provided invalid utf16 string indicating that nethost was not built with
-  /// unicode support.
-  InvalidUtf16(FromUtf16Error),
   /// Hostfxr path exceeds hardcoded path size of `4096`.
   InvalidBufferSize,
+  /// Nethost provided invalid string.
+  InvalidPath(NulError),
 }
 
 /// Get `hostfxr` dynamic library path on system using global registration or environment
@@ -39,8 +39,19 @@ pub fn get_hostfxr_path() -> Result<String, GetHostFxrError> {
     return Err(GetHostFxrError::Unexpected(code));
   }
 
-  // Attempt to decode from utf16
-  String::from_utf16(&buf[..buf_len as usize - 1]).map_err(GetHostFxrError::InvalidUtf16)
+  Ok(buf[..buf_len as usize - 1].into_str().to_string())
+}
+
+impl From<()> for GetHostFxrError {
+  fn from(_: ()) -> Self {
+    Self::Unexpected(-1)
+  }
+}
+
+impl From<NulError> for GetHostFxrError {
+  fn from(inner: NulError) -> Self {
+    Self::InvalidPath(inner)
+  }
 }
 
 #[cfg(test)]
