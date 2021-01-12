@@ -2,5 +2,7 @@
 .idea/
 .vscode/
 
+bin/
+obj/
 target/
 vendor/

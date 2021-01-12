@@ -1,6 +1,10 @@
+use crate::HostFxrParameters;
+use hostfxr_sys::hostfxr_initialize_parameters;
 /// Lightweight wide/short null suffix string conversion.
 use std::borrow::Cow;
 use std::ffi::OsString;
+use std::mem::size_of;
+use std::mem::MaybeUninit;
 use std::os::raw::c_char;
 use std::slice::from_raw_parts;
 
@@ -11,37 +15,76 @@ pub trait IntoBytes<T> {
   fn into_bytes(self) -> Vec<T>;
 }
 
-pub trait IntoStr<'a> {
-  fn into_str(self) -> Cow<'a, str>;
+pub trait IntoPtr<T> {
+  unsafe fn into_ptr(self) -> *const T;
 }
 
-impl<'a> IntoStr<'a> for &'a [c_char] {
-  fn into_str(self) -> Cow<'a, str> {
-    let len = self.len();
-    let buf = self.as_ptr();
-    let buf = unsafe { from_raw_parts(buf as *const _, len) };
-    let buf = String::from_utf8_lossy(buf).to_string();
+pub trait IntoMutPtr<T> {
+  unsafe fn into_mut_ptr(self) -> *mut T;
+}
 
-    Cow::from(buf)
+pub trait IntoString<'a> {
+  fn into_string(self) -> String;
+}
+
+impl<'a> IntoString<'a> for *const c_char {
+  fn into_string(self) -> String {
+    let len = (0..).position(|i| unsafe { *self.offset(i) == 0 }).unwrap();
+    let buf = unsafe {
+      let mut v = Vec::with_capacity(len);
+      std::ptr::copy(self as *const _, v.as_mut_ptr(), len);
+
+      v.set_len(len);
+      v
+    };
+
+    String::from_utf8_lossy(&buf).to_string()
   }
 }
 
-impl<'a> IntoStr<'a> for *const c_char {
-  fn into_str(self) -> Cow<'a, str> {
-    unimplemented!()
+impl<'a> IntoString<'a> for &'a [c_char] {
+  fn into_string(self) -> String {
+    let len = self.len();
+    let buf = self.as_ptr();
+    let buf = unsafe { from_raw_parts(buf as *const _, len) };
+
+    String::from_utf8_lossy(buf).to_string()
+  }
+}
+
+impl<'a> IntoString<'a> for *const u16 {
+  fn into_string(self) -> String {
+    let len = (0..).position(|i| unsafe { *self.offset(i) == 0 }).unwrap();
+    let buf = unsafe {
+      let mut v = Vec::with_capacity(len);
+
+      std::ptr::copy(self, v.as_mut_ptr(), len);
+
+      v.set_len(len);
+      v
+    };
+
+    buf.into_string()
   }
 }
 
 #[cfg(windows)]
-impl<'a> IntoStr<'a> for &'a [u16] {
-  fn into_str(self) -> Cow<'a, str> {
+impl<'a> IntoString<'a> for &'a [u16] {
+  fn into_string(self) -> String {
     use std::os::windows::prelude::*;
 
     let buf = OsString::from_wide(self);
     let buf = buf.to_string_lossy();
     let buf = buf.to_string();
 
-    Cow::from(buf)
+    buf
+  }
+}
+
+#[cfg(windows)]
+impl<'a> IntoString<'a> for Vec<u16> {
+  fn into_string(self) -> String {
+    self.as_slice().into_string()
   }
 }
 
@@ -67,6 +110,63 @@ impl<R: AsRef<str>> IntoBytes<u16> for R {
     let buf: Vec<_> = buf.encode_wide().chain(Some(0)).collect();
 
     buf
+  }
+}
+
+impl<R: IntoBytes<c_char>> IntoPtr<c_char> for R {
+  unsafe fn into_ptr(self) -> *const c_char {
+    let buf = self.into_bytes();
+    let ptr = buf.as_ptr();
+
+    std::mem::forget(buf);
+
+    ptr
+  }
+}
+
+#[cfg(windows)]
+impl<R: IntoBytes<u16>> IntoPtr<u16> for R {
+  unsafe fn into_ptr(self) -> *const u16 {
+    let buf = self.into_bytes();
+    let ptr = buf.as_ptr();
+
+    std::mem::forget(buf);
+
+    ptr
+  }
+}
+
+impl<V, I: IntoIterator<Item = R>, R: IntoPtr<V>> IntoMutPtr<*const V> for I {
+  unsafe fn into_mut_ptr(self) -> *mut *const V {
+    let mut vec: Vec<*const V> = self //
+      .into_iter()
+      .map(|item| item.into_ptr())
+      .collect();
+    let ptr = vec.as_mut_ptr();
+
+    std::mem::forget(vec);
+
+    ptr
+  }
+}
+
+impl<'a> IntoPtr<hostfxr_initialize_parameters> for Option<HostFxrParameters<'a>> {
+  unsafe fn into_ptr(self) -> *const hostfxr_initialize_parameters {
+    let parameters = match self {
+      Some(parameters) => MaybeUninit::new(hostfxr_initialize_parameters {
+        size: size_of::<hostfxr_initialize_parameters>() as u64,
+        host_path: parameters.host_path.into_ptr(),
+        dotnet_root: parameters.dotnet_root.into_ptr(),
+      }),
+      None => MaybeUninit::zeroed(),
+    };
+
+    let ptr = parameters.as_ptr();
+
+    #[allow(clippy::forget_copy)]
+    std::mem::forget(parameters);
+
+    ptr
   }
 }
 
@@ -105,7 +205,7 @@ mod tests {
     for (buf, expected) in cases {
       let buf = unsafe { slice::from_raw_parts(buf.as_ptr() as *const i8, buf.len()) };
 
-      let actual = buf.into_str();
+      let actual = buf.into_string();
       assert_eq!(actual, expected);
     }
   }
@@ -121,7 +221,7 @@ mod tests {
     ];
 
     for (buf, expected) in cases {
-      let actual = buf.into_str();
+      let actual = buf.into_string();
       assert_eq!(actual, expected);
     }
   }

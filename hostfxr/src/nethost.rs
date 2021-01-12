@@ -1,4 +1,4 @@
-use crate::string::IntoStr;
+use crate::string::IntoString;
 use std::ffi::NulError;
 use std::ptr::null_mut;
 
@@ -39,7 +39,7 @@ pub fn get_hostfxr_path() -> Result<String, GetHostFxrError> {
     return Err(GetHostFxrError::Unexpected(code));
   }
 
-  Ok(buf[..buf_len as usize - 1].into_str().to_string())
+  Ok(buf[..buf_len as usize - 1].into_string())
 }
 
 impl From<()> for GetHostFxrError {
