@@ -1,8 +1,7 @@
-use crate::HostFxrParameters;
+use crate::parameters::HostFxrParameters;
 use hostfxr_sys::hostfxr_initialize_parameters;
 /// Lightweight wide/short null suffix string conversion.
 use std::borrow::Cow;
-use std::ffi::OsString;
 use std::mem::size_of;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
@@ -52,6 +51,7 @@ impl<'a> IntoString<'a> for &'a [c_char] {
   }
 }
 
+#[cfg(windows)]
 impl<'a> IntoString<'a> for *const u16 {
   fn into_string(self) -> String {
     let len = (0..).position(|i| unsafe { *self.offset(i) == 0 }).unwrap();
@@ -211,6 +211,7 @@ mod tests {
   }
 
   #[test]
+  #[cfg(windows)]
   fn test_into_str_from_wide() {
     let cases: Vec<(&[u16], &str)> = vec![
       (wchar::wch!("Hello World"), "Hello World"),
@@ -247,6 +248,7 @@ mod tests {
   }
 
   #[test]
+  #[cfg(windows)]
   fn test_into_bytes_from_wide() {
     let cases = vec!["Hello World", "Hello World\0", "Hello \0World", "\0", ""];
 
@@ -268,22 +270,3 @@ mod tests {
     }
   }
 }
-// #[cfg(windows)]
-// impl<'a, C: Into<Cow<'a, [u16]>>> IntoOsString for C {
-//   fn into_os_str(self) -> OsString {
-//     OsString::from_wide(&self.into())
-//   }
-// }
-
-// #[cfg(windows)]
-// impl<'a> Into<Vec<u16>> for OsString {
-//   fn into(self) -> Vec<u16> {
-//     self.to_wide_null()
-//   }
-// }
-//
-// impl<'a> Into<Vec<u8>> for OsString {
-//   fn into(self) -> Vec<u8> {
-//     self.as_bytes().into_iter().chain(Some(&0)).collect()
-//   }
-// }

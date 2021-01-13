@@ -73,7 +73,7 @@ fn main() {
   // Link c++ runtime
   match &env::var("CARGO_CFG_TARGET_OS").expect("`$CARGO_CFG_TARGET_OS` undefined")[..] {
     "ios" => link("c++"),
-    "macos" => link("c++"),
+    "macos" => println!("cargo:rustc-flags=-l dylib=c++"),
     _ => link("vcruntime"),
   };
 }
@@ -178,6 +178,7 @@ fn get_runtime_from_target(target: &str) -> String {
       _ => "linux",
     },
     OperatingSystem::Windows => "win",
+    OperatingSystem::Darwin => "osx",
     OperatingSystem::MacOSX { .. } => "osx",
     OperatingSystem::Freebsd => "freebsd",
     _ => panic!("Unsupported os '{}'", &target.operating_system),

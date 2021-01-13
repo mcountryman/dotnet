@@ -70,9 +70,9 @@ mod tests {
       .to_string_lossy();
 
     match std::env::consts::OS {
-      "macos" => assert_eq!(hostfxr, "hostfxr.dylib"),
+      "macos" => assert_eq!(hostfxr, "libhostfxr.dylib"),
       "windows" => assert_eq!(hostfxr, "hostfxr.dll"),
-      _ => assert_eq!(hostfxr, "hostfxr.so"),
+      _ => assert_eq!(hostfxr, "libhostfxr.so"),
     };
   }
 }
