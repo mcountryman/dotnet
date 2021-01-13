@@ -13,7 +13,6 @@ pub mod error;
 mod library;
 mod nethost;
 mod parameters;
-#[macro_use]
 mod string;
 
 type LoadAssemblyAndGetFunctionPointerFn = unsafe extern "C" fn(

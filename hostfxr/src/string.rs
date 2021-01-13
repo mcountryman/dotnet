@@ -170,22 +170,6 @@ impl<'a> IntoPtr<hostfxr_initialize_parameters> for Option<HostFxrParameters<'a>
   }
 }
 
-#[macro_export]
-macro_rules! into_args {
-  ($args: ident) => {{
-    #[allow(unused_imports)]
-    use $crate::string::IntoBytes;
-
-    let args: Vec<Vec<_>> = $args.into_iter().map(|arg| arg.into_bytes()).collect();
-    let mut args: Vec<*const _> = args.into_iter().map(|arg| arg.as_ptr()).collect();
-
-    let argv = args.as_mut_ptr();
-    let argc = args.len() as _;
-
-    (argv, argc)
-  }};
-}
-
 #[cfg(test)]
 mod tests {
   use std::slice;
