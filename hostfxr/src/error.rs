@@ -1,4 +1,3 @@
-use crate::nethost::GetHostFxrError;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::TryFromIntError;
@@ -15,7 +14,6 @@ pub enum HostFxrError {
   MissingHostPath,
   MissingDotnetRoot,
   TryFromIntError(TryFromIntError),
-  ResolveHostFxr(GetHostFxrError),
 
   // Failure
   InvalidArgFailure,
@@ -316,12 +314,6 @@ impl From<libloading::Error> for HostFxrError {
 impl From<TryFromIntError> for HostFxrError {
   fn from(inner: TryFromIntError) -> Self {
     Self::TryFromIntError(inner)
-  }
-}
-
-impl From<GetHostFxrError> for HostFxrError {
-  fn from(inner: GetHostFxrError) -> Self {
-    Self::ResolveHostFxr(inner)
   }
 }
 

@@ -1,13 +1,14 @@
-use hostfxr_sys::{char_t, hostfxr_delegate_type, hostfxr_handle};
-use library::HostFxrLibrary;
-
-use crate::error::{HostFxrError, HostFxrResult};
-use crate::string::{IntoBytes, IntoPtr, IntoString};
 use std::mem::MaybeUninit;
 use std::{
   collections::HashMap,
   ptr::{null, null_mut},
 };
+
+use hostfxr_sys::{char_t, hostfxr_delegate_type, hostfxr_handle};
+pub use library::HostFxrLibrary;
+
+use crate::error::{HostFxrError, HostFxrResult};
+use crate::string::{IntoBytes, IntoPtr, IntoString};
 
 pub mod error;
 mod library;
@@ -55,6 +56,35 @@ impl HostFxrContext {
     })
   }
 
+  /// Set the runtime property value name
+  ///
+  /// # Arguments
+  /// * `name` - The runtime property name
+  /// * `value` - The runtime property value
+  ///
+  /// # Example
+  /// ```
+  /// use std::path::Path;
+  /// use std::error::Error;
+  /// use hostfxr::HostFxrContext;
+  ///
+  /// fn add_probing_directory<P: AsRef<str>>(
+  ///   ctx: HostFxrContext,
+  ///   path: P,
+  /// ) -> Result<(), Box<dyn Error>> {
+  ///   const NAME: &str = "PROBING_DIRECTORIES";
+  ///
+  ///   let directories = ctx.get_runtime_property(NAME)?;
+  ///   let directories = directories
+  ///     .split(";")
+  ///     .chain(Some(path.as_ref()))
+  ///     .fold(String::new(), |a, b| a + b + ";");
+  ///
+  ///   ctx.set_runtime_property_value(NAME, directories)?;
+  ///
+  ///   Ok(())
+  /// }
+  /// ```
   pub fn set_runtime_property_value<N, V>(&self, name: N, value: V) -> HostFxrResult<()>
   where
     N: IntoBytes<char_t>,
@@ -75,6 +105,23 @@ impl HostFxrContext {
     Ok(())
   }
 
+  /// Gets the runtime property value by name
+  ///
+  /// # Arguments
+  /// * `name` - The name of the runtime property
+  ///
+  /// # Example
+  /// ```
+  /// use hostfxr::HostFxrContext;
+  ///
+  /// fn dump_property(ctx: HostFxrContext) {
+  ///    println!(
+  ///       "`RUNTIME_IDENTIFIER` = `{}`",
+  ///       ctx.get_runtime_property("RUNTIME_IDENTIFIER").unwrap()
+  ///     );
+  ///    // `RUNTIME_IDENTIFIER` = `win10-x64`
+  /// }
+  /// ```
   pub fn get_runtime_property<N>(&self, name: N) -> HostFxrResult<String>
   where
     N: IntoBytes<char_t>,
@@ -95,7 +142,18 @@ impl HostFxrContext {
     Ok(value.into_string())
   }
 
-  /// Get all the runtime properties for the host context.
+  /// Get all the runtime properties
+  ///
+  /// # Example
+  /// ```
+  /// use hostfxr::HostFxrContext;
+  ///
+  /// fn dump_properties(ctx: HostFxrContext) {
+  ///   for (name, value) in ctx.get_runtime_properties().unwrap() {
+  ///     println!("`{}` = `{}`", name, value);
+  ///   }
+  /// }
+  /// ```
   pub fn get_runtime_properties(&self) -> HostFxrResult<HashMap<String, String>> {
     let get_runtime_properties = self.library.get_runtime_properties.clone();
     let get_runtime_properties = get_runtime_properties.lift_option().unwrap();
@@ -131,6 +189,29 @@ impl HostFxrContext {
     Ok(properties)
   }
 
+  /// Load CoreCLR and run the application for an initialized host context
+  ///
+  /// The host_context_handle must have been initialized using
+  /// hostfxr_initialize_for_dotnet_command_line.
+  ///
+  /// # Example
+  /// ```
+  ///
+  /// use hostfxr::HostFxrLibrary;
+  ///
+  /// fn run_app<A: AsRef<str>>(exe_path: A) {
+  ///   let hostfxr = HostFxrLibrary::new().expect("Failed to load hostfxr");
+  ///   let hostfxr = hostfxr
+  ///     .initialize_command_line(
+  ///       &[exe_path.as_ref()],
+  ///       None,
+  ///     )
+  ///     .expect("Failed to initialize hostfxr");
+  ///
+  ///   hostfxr.run_app().expect(&format!("Failed to run app `{}`", exe_path.as_ref()));
+  /// }
+  ///
+  /// ```
   pub fn run_app(&self) -> HostFxrResult<()> {
     let run_app = self.library.run_app.clone();
     let run_app = run_app.lift_option().unwrap();
@@ -140,6 +221,42 @@ impl HostFxrContext {
     HostFxrError::from_status(flag)
   }
 
+  /// Calling this function will load the specified assembly in isolation (into its own
+  /// `AssemblyLoadContext`) and it will use `AssemblyDependencyResolver` on it to provide
+  /// dependency resolution. Once loaded it will find the specified type and method and
+  /// return a native function pointer to that method. The method's signature can be
+  /// specified via the delegate type name.
+  ///
+  /// # Arguments
+  /// * `assembly_path` - Path to the assembly to load. In case of complex component, this
+  /// should be the main assembly of the component (the one with the `.deps.json` next to
+  /// it). Note that this does not have to be the assembly from which the `type_name` and
+  /// `method_name` are.
+  ///  * `type_name` - Assembly qualified type name to find
+  ///  * `method_name` - Name of the method on the `type_name` to find. The method must be
+  ///  `static` and must match the signature of `delegate_type_name`.
+  ///  * `delegate_type_name` - Assembly qualified delegate type name for the method
+  /// signature, or null. If this is null, the method signature is assumed to be
+  /// `public delegate int ComponentEntryPoint(IntPtr args, int sizeBytes);`
+  ///
+  /// # Example
+  /// ```
+  /// use hostfxr::HostFxrContext;
+  ///
+  /// type AddFn = extern "C" fn(a: i32, b: i32) -> i32;
+  ///
+  /// fn get_add_fn(ctx: HostFxrContext) -> AddFn {
+  ///   ctx.load_assembly_and_get_delegate(
+  ///     std::fs::canonicalize("../bridge/bin/Debug/net5.0/bridge.dll")
+  ///       .unwrap()
+  ///       .to_str()
+  ///       .unwrap(),
+  ///     "Methods, add, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+  ///     "Add",
+  ///     "Methods+AddFn, add, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+  ///   ).expect("Failed to resolve Add method")
+  /// }
+  /// ```
   pub fn load_assembly_and_get_delegate<F, A, T, M, D>(
     &self,
     assembly_path: A,
@@ -229,6 +346,14 @@ mod tests {
         None,
       )
       .unwrap();
+
+    hostfxr
+      .get_runtime_properties()
+      .unwrap()
+      .into_iter()
+      .for_each(|(name, value)| {
+        println!("`{}` = `{}`", name, value);
+      });
 
     let initialize: InitializeFn = hostfxr
       .load_assembly_and_get_delegate(

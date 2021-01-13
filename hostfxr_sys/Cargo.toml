@@ -12,7 +12,6 @@ default = [
 # Determines cpp runtime/nethost link type
 static = []
 
-
 [build-dependencies]
 zip = "^0.5"
 ureq = "^2.0"
