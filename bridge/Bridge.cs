@@ -1,18 +1,22 @@
 ﻿using System;
 
 
-public class Bridge {
+public class Bridge
+{
   public delegate void InitializeFn();
 
-  public void Initialize() {
+  public static void Initialize()
+  {
     Console.WriteLine("Initialize");
   }
 }
 
-public class Program {
-  public static void Main(string[] args) {
-    var argss = String.Join(", ", args);
+public class Program
+{
+  public static void Main(string[] args)
+  {
+    var type = typeof(Bridge.InitializeFn);
 
-    Console.WriteLine($"Dotnet.Bridge.Initialize: [{argss}]");
+    Console.WriteLine(type.AssemblyQualifiedName);
   }
 }

@@ -3,11 +3,11 @@ use library::HostFxrLibrary;
 
 use crate::error::{HostFxrError, HostFxrResult};
 use crate::string::{IntoBytes, IntoPtr, IntoString};
+use std::mem::MaybeUninit;
 use std::{
   collections::HashMap,
   ptr::{null, null_mut},
 };
-use std::{ffi::c_void, mem::MaybeUninit};
 
 pub mod error;
 mod library;
@@ -156,8 +156,7 @@ impl HostFxrContext {
   {
     let native = self.load_assembly_and_get_function_pointer;
     let mut delegate = MaybeUninit::<F>::zeroed();
-    let mut delegate_ptr = delegate.as_mut_ptr() as *mut c_void;
-    let delegate_ptr = &mut delegate_ptr as *mut *mut _;
+    let delegate_ptr = delegate.as_mut_ptr() as *mut _ as *mut *mut _;
 
     let flag = unsafe {
       native(
@@ -224,7 +223,7 @@ mod tests {
       //   None,
       // )
       .initialize_runtime_config(
-        std::fs::canonicalize("../bridge/bin/Debug/net5.0/bridge.deps.json")
+        std::fs::canonicalize("../bridge/bridge.runtimeconfig.json")
           .unwrap()
           .to_str()
           .unwrap(),
@@ -238,9 +237,9 @@ mod tests {
           .unwrap()
           .to_str()
           .unwrap(),
-        "Bridge",
+        "Bridge, bridge, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
         "Initialize",
-        "Bridge.InitializeFn",
+        "Bridge+InitializeFn, bridge, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
       )
       .unwrap();
 
