@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::ffi::OsStr;
 
-use hostfxr_sys::{char_t, hostfxr_initialize_parameters};
+use hostfxr_sys::char_t;
 
 use crate::string::{IntoBytes, IntoPtr};
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
   parameters::HostFxrParameters,
 };
 use crate::{nethost::get_hostfxr_path, HostFxrContext};
-use std::mem::{size_of, MaybeUninit};
+use std::mem::MaybeUninit;
 use std::sync::Arc;
 
 //
@@ -18,6 +18,7 @@ use libloading::os::unix::{Library, Symbol};
 #[cfg(windows)]
 use libloading::os::windows::{Library, Symbol};
 
+/// Wrapper around hostfxr dynamic library exports.
 #[derive(Debug, Clone)]
 pub struct HostFxrLibrary {
   pub(crate) library: Arc<Library>,
@@ -38,14 +39,32 @@ pub struct HostFxrLibrary {
 }
 
 impl HostFxrLibrary {
+  /// Detect and load hostfxr library from environment
   pub fn new() -> HostFxrResult<HostFxrLibrary> {
     Self::from_path(get_hostfxr_path()?)
   }
 
+  /// Load hostfxr library from supplied path
+  ///
+  /// # Arguments
+  /// * `path` - Path to hostfxr library on system.
   pub fn from_path<P: AsRef<OsStr>>(path: P) -> HostFxrResult<HostFxrLibrary> {
     Self::try_from(Arc::new(Library::new(path)?))
   }
 
+  /// Initializes the hosting components for a dotnet command line running an application
+  ///
+  /// This function parses the specified command-line arguments to determine the application to run. It will
+  /// then find the corresponding .runtimeconfig.json and .deps.json with which to resolve frameworks and
+  /// dependencies and prepare everything needed to load the runtime.
+  ///
+  /// This function only supports arguments for running an application. It does not support SDK commands.
+  ///
+  /// This function does not load the runtime.
+  ///
+  /// # Arguments
+  /// * `args` - Command-line arguments for running an application
+  /// * `parameters` - Additional parameters for initialization
   pub fn initialize_command_line<A, I>(
     &self,
     args: A,
@@ -60,11 +79,9 @@ impl HostFxrLibrary {
     let initialize_for_dotnet_command_line =
       initialize_for_dotnet_command_line.lift_option().unwrap();
 
-    let (argc, argv) = {
-      let mut vec: Vec<*const _> = args
-        .into_iter()
-        .map(|item| unsafe { item.into_ptr() })
-        .collect();
+    // Convert args to leaky ptr of ptrs
+    let (argc, argv) = unsafe {
+      let mut vec: Vec<*const _> = args.into_iter().map(|item| item.into_ptr()).collect();
       let len = vec.len() as _;
       let ptr = vec.as_mut_ptr();
 
@@ -87,9 +104,23 @@ impl HostFxrLibrary {
     HostFxrContext::new(unsafe { handle.assume_init() }, self.clone())
   }
 
+  /// Initializes the hosting components using a .runtimeconfig.json file
+  ///
+  /// This function will process the .runtimeconfig.json to resolve frameworks and prepare everything needed
+  /// to load the runtime. It will only process the .deps.json from frameworks (not any app/component that
+  /// may be next to the .runtimeconfig.json).
+  ///
+  /// This function does not load the runtime.
+  ///
+  /// If called when the runtime has already been loaded, this function will check if the specified runtime
+  /// config is compatible with the existing runtime.
+  ///
+  /// # Arguments
+  /// * `runtime_config` - Path to the .runtimeconfig.json file
+  /// * `parameters` - Additional parameters for intialization
   pub fn initialize_runtime_config<R>(
     &self,
-    config: R,
+    runtime_config: R,
     parameters: Option<HostFxrParameters>,
   ) -> HostFxrResult<HostFxrContext>
   where
@@ -99,29 +130,12 @@ impl HostFxrLibrary {
     let initialize_for_runtime_config =
       initialize_for_runtime_config.lift_option().unwrap();
 
-    let runtime_config = config.into_bytes();
-    let runtime_config = runtime_config.as_ptr();
     let mut handle = MaybeUninit::zeroed();
-    let parameters = parameters.map(
-      |HostFxrParameters {
-         host_path,
-         dotnet_root,
-       }| { (host_path.into_bytes(), dotnet_root.into_bytes()) },
-    );
-
-    let parameters = match parameters {
-      Some((host_path, dotnet_root)) => MaybeUninit::new(hostfxr_initialize_parameters {
-        size: size_of::<hostfxr_initialize_parameters>() as u64,
-        host_path: host_path.as_ptr(),
-        dotnet_root: dotnet_root.as_ptr(),
-      }),
-      None => MaybeUninit::zeroed(),
-    };
 
     let flag = unsafe {
       initialize_for_runtime_config(
-        runtime_config,
-        parameters.as_ptr(),
+        runtime_config.into_ptr(),
+        parameters.into_ptr(),
         handle.as_mut_ptr(),
       )
     };
