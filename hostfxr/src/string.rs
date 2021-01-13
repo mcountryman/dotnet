@@ -73,7 +73,7 @@ impl<'a> IntoString<'a> for &'a [u16] {
   fn into_string(self) -> String {
     use std::os::windows::prelude::*;
 
-    let buf = OsString::from_wide(self);
+    let buf = std::ffi::OsString::from_wide(self);
     let buf = buf.to_string_lossy();
     let buf = buf.to_string();
 
@@ -106,7 +106,7 @@ impl<R: AsRef<str>> IntoBytes<u16> for R {
     use std::os::windows::prelude::*;
 
     let buf = self.as_ref();
-    let buf = OsString::from(buf);
+    let buf = std::ffi::OsString::from(buf);
     let buf: Vec<_> = buf.encode_wide().chain(Some(0)).collect();
 
     buf
