@@ -1,12 +1,10 @@
-#nullable enable
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
-using System.Threading;
+using Dotnet.Bridge.Marshaling.Utilities;
 
 namespace Dotnet.Bridge.Marshaling
 {
@@ -20,11 +18,23 @@ namespace Dotnet.Bridge.Marshaling
         throw new InvalidOperationException($"MethodInfo for delegate `{managed}` not found.");
       }
 
+      /**
+
+      public static class [GUID] {
+        public static ret::TNative[0][GUID](param::TNative... params) {
+          
+        }
+
+        private static readonly [GUID:param];
+      }
+
+      */
+
       var (returnMarshaller, returnType) = GetReturnType(methodInfo);
       var (paramMarshallers, paramTypes) = GetParamTypes(methodInfo);
       var parameters = methodInfo.GetParameters();
 
-      var wrapperClass = CreateType();
+      var wrapperClass = Dynamic.CreateStaticType();
       var wrapperName = $"Wrapped{methodInfo.Name}";
       var wrapperCtor = wrapperClass.DefineConstructor(MethodAttributes.Static | MethodAttributes.Public, CallingConventions.Any, new Type[0]);
       var wrapper = new DynamicMethod(
@@ -121,41 +131,5 @@ namespace Dotnet.Bridge.Marshaling
 
       return (marshallers, types);
     }
-
-
-    public FieldInfo GetNewMarshalerField(TypeBuilder type, IMarshaler marshaller)
-    {
-      return type.DefineField(new Guid().ToString(), marshaller.GetType(), FieldAttributes.Static | FieldAttributes.InitOnly);
-    }
-
-    public static TypeBuilder CreateType()
-    {
-      var module = GetModuleBuilder();
-      var name = Guid.NewGuid().ToString();
-
-      return module.DefineType(name, TypeAttributes.Public | TypeAttributes.Sealed);
-    }
-
-    private static ModuleBuilder GetModuleBuilder()
-    {
-      lock (_moduleBuilderLock)
-      {
-        if (_moduleBuilder == null)
-        {
-          var assemblyName = new AssemblyName("BridgeDelegateMarshaller");
-          var assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run);
-          var moduleBuilder = assemblyBuilder?.DefineDynamicModule("BridgeDelegateMarshaller");
-          if (moduleBuilder == null)
-            throw new InvalidOperationException("Failed to instantiate module builder");
-
-          _moduleBuilder = moduleBuilder;
-        }
-
-        return _moduleBuilder;
-      }
-    }
-
-    private static ModuleBuilder? _moduleBuilder;
-    private static readonly object _moduleBuilderLock = new object();
   }
 }
