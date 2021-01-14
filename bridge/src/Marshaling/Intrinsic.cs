@@ -3,16 +3,16 @@ using System.Runtime.InteropServices;
 
 namespace Dotnet.Bridge.Marshaling
 {
-  public class StringMarshaller : TupleMarshaller<string, IntPtr, int>
+  public class StringMarshaler : Marshaler<string, IntPtr>
   {
-    public override (IntPtr, int) MarshalTo(string from)
+    public override IntPtr MarshalTo(string from)
     {
-      return (Marshal.StringToHGlobalUni(from), from.Length);
+      return Marshal.StringToHGlobalUni(from);
     }
 
-    public override string MarshalFrom(IntPtr ptr, int len)
+    public override string MarshalFrom(IntPtr ptr)
     {
-      return Marshal.PtrToStringUTF8(ptr, len);
+      return Marshal.PtrToStringUTF8(ptr)!;
     }
   }
 }
