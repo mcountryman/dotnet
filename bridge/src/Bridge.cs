@@ -15,13 +15,20 @@ public class Bridge
 
 public class BridgeContext
 {
-  public static unsafe ClrObject Add(ClrObject[] args, int argc)
+  public static unsafe ClrObject Add(ClrObject* args, int argc)
   {
-    var a = args[0].Value;
-    var b = args[1].Value;
-    var c = a + b;
+    Console.Write("arg: [");
+    Console.Write(
+      String.Join(", ",
+        Enumerable.Range(0, argc)
+          .Select(i => new { Type = args[i].Type, Value = args[i].Value }.ToString())
+          .ToArray()
+      )
+    );
 
-    return ClrObject.From(10);
+    Console.Write("]\n");
+
+    return ClrObject.From((int)0);
   }
 
   public static BridgeContextHandle GetHandle()

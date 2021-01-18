@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Dotnet.Bridge
 {
-  public enum ClrType : byte
+  public enum ClrType : uint
   {
     Char = 0,
     Byte,
@@ -18,6 +18,7 @@ namespace Dotnet.Bridge
     Float,
     Double,
     Decimal,
+    String,
   }
 
   [StructLayout(LayoutKind.Sequential)]
@@ -27,54 +28,59 @@ namespace Dotnet.Bridge
     IntPtr Value;
     [MarshalAs(UnmanagedType.U8)]
     ulong Length;
+
+    public override string ToString()
+    {
+      return Marshal.PtrToStringUTF8(Value, (int)Length);
+    }
   }
 
-  [StructLayout(LayoutKind.Explicit)]
+  [StructLayout(LayoutKind.Explicit, Size = 24)]
   public struct ClrObject
   {
-    [MarshalAs(UnmanagedType.U2)]
     [FieldOffset(0)]
-    ClrType Type;
-    [MarshalAs(UnmanagedType.U2)]
-    [FieldOffset(1)]
+    [MarshalAs(UnmanagedType.U4)]
+    public ClrType Type;
+    [MarshalAs(UnmanagedType.U1)]
+    [FieldOffset(8)]
     char Char;
-    [MarshalAs(UnmanagedType.U2)]
-    [FieldOffset(1)]
+    [MarshalAs(UnmanagedType.U1)]
+    [FieldOffset(8)]
     byte Byte;
-    [MarshalAs(UnmanagedType.I2)]
-    [FieldOffset(1)]
+    [MarshalAs(UnmanagedType.I1)]
+    [FieldOffset(8)]
     sbyte SByte;
     [MarshalAs(UnmanagedType.Bool)]
-    [FieldOffset(1)]
+    [FieldOffset(8)]
     bool Boolean;
-    [MarshalAs(UnmanagedType.I4)]
-    [FieldOffset(1)]
+    [MarshalAs(UnmanagedType.I2)]
+    [FieldOffset(8)]
     short Short;
-    [MarshalAs(UnmanagedType.U4)]
-    [FieldOffset(1)]
+    [MarshalAs(UnmanagedType.U2)]
+    [FieldOffset(8)]
     ushort UShort;
     [MarshalAs(UnmanagedType.I4)]
-    [FieldOffset(1)]
+    [FieldOffset(8)]
     int Int32;
     [MarshalAs(UnmanagedType.U4)]
-    [FieldOffset(1)]
+    [FieldOffset(8)]
     uint UInt32;
     [MarshalAs(UnmanagedType.I8)]
-    [FieldOffset(1)]
+    [FieldOffset(8)]
     long Int64;
     [MarshalAs(UnmanagedType.U8)]
-    [FieldOffset(1)]
+    [FieldOffset(8)]
     ulong UInt64;
     [MarshalAs(UnmanagedType.R4)]
-    [FieldOffset(1)]
+    [FieldOffset(8)]
     float Float;
-    [MarshalAs(UnmanagedType.R4)]
-    [FieldOffset(1)]
+    [MarshalAs(UnmanagedType.R8)]
+    [FieldOffset(8)]
     double Double;
     [MarshalAs(UnmanagedType.R8)]
-    [FieldOffset(1)]
+    [FieldOffset(8)]
     decimal Decimal;
-    [FieldOffset(1)]
+    [FieldOffset(8)]
     ClrString String;
 
     public dynamic Value
@@ -96,6 +102,7 @@ namespace Dotnet.Bridge
           case ClrType.Float: return Float;
           case ClrType.Double: return Double;
           case ClrType.Decimal: return Decimal;
+          case ClrType.String: return String.ToString();
           default:
             throw new InvalidOperationException($"ClrObject has unexpected type `{Type}`");
         }
