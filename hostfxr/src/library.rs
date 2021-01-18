@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::ffi::OsStr;
 
-use hostfxr_sys::char_t;
+use dotnet_hostfxr_sys::char_t;
 
 use crate::string::{IntoBytes, IntoPtr};
 use crate::{
@@ -22,20 +22,21 @@ use libloading::os::windows::{Library, Symbol};
 #[derive(Debug, Clone)]
 pub struct HostFxrLibrary {
   pub(crate) library: Arc<Library>,
-  pub(crate) set_error_writer: Symbol<hostfxr_sys::hostfxr_set_error_writer_fn>,
+  pub(crate) set_error_writer: Symbol<dotnet_hostfxr_sys::hostfxr_set_error_writer_fn>,
   pub(crate) initialize_for_dotnet_command_line:
-    Symbol<hostfxr_sys::hostfxr_initialize_for_dotnet_command_line_fn>,
+    Symbol<dotnet_hostfxr_sys::hostfxr_initialize_for_dotnet_command_line_fn>,
   pub(crate) initialize_for_runtime_config:
-    Symbol<hostfxr_sys::hostfxr_initialize_for_runtime_config_fn>,
+    Symbol<dotnet_hostfxr_sys::hostfxr_initialize_for_runtime_config_fn>,
   pub(crate) get_runtime_property_value:
-    Symbol<hostfxr_sys::hostfxr_get_runtime_property_value_fn>,
+    Symbol<dotnet_hostfxr_sys::hostfxr_get_runtime_property_value_fn>,
   pub(crate) set_runtime_property_value:
-    Symbol<hostfxr_sys::hostfxr_set_runtime_property_value_fn>,
+    Symbol<dotnet_hostfxr_sys::hostfxr_set_runtime_property_value_fn>,
   pub(crate) get_runtime_properties:
-    Symbol<hostfxr_sys::hostfxr_get_runtime_properties_fn>,
-  pub(crate) run_app: Symbol<hostfxr_sys::hostfxr_run_app_fn>,
-  pub(crate) get_runtime_delegate: Symbol<hostfxr_sys::hostfxr_get_runtime_delegate_fn>,
-  pub(crate) close: Symbol<hostfxr_sys::hostfxr_close_fn>,
+    Symbol<dotnet_hostfxr_sys::hostfxr_get_runtime_properties_fn>,
+  pub(crate) run_app: Symbol<dotnet_hostfxr_sys::hostfxr_run_app_fn>,
+  pub(crate) get_runtime_delegate:
+    Symbol<dotnet_hostfxr_sys::hostfxr_get_runtime_delegate_fn>,
+  pub(crate) close: Symbol<dotnet_hostfxr_sys::hostfxr_close_fn>,
 }
 
 impl HostFxrLibrary {

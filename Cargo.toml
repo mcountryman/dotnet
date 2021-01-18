@@ -1,9 +1,11 @@
 [workspace]
 members = [
+  "host",
   "hostfxr",
   "hostfxr_sys",
 ]
 
 [patch.crates-io]
-hostfxr = { path = "./hostfxr" }
-hostfxr_sys = { path = "./hostfxr_sys" }
+dotnet_host = { path = "./host" }
+dotnet_hostfxr = { path = "./hostfxr" }
+dotnet_hostfxr_sys = { path = "./hostfxr_sys" }

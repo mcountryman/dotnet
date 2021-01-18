@@ -1,40 +1,36 @@
-using System;
-using System.Runtime.InteropServices;
+// using System;
+// using System.Runtime.InteropServices;
 
-public interface IBridgeContext
-{
-  void GetMethod(string assemblyQualifiedNameOrSignature);
-  void GetField(string assemblyQualifiedName);
-  void SetField(string assemblyQualiedName, object value);
-}
+// [StructLayout(LayoutKind.Sequential)]
+// public struct ClrObject
+// {
+//   public int Type;
+//   public string Value;
+// }
 
-[StructLayout(LayoutKind.Sequential)]
-public struct BridgeContextHandle
-{
-  public IntPtr GetMethodHandle;
-  public IntPtr GetFieldHandle;
-  public IntPtr SetFieldHandle;
-}
+// public interface IBridgeContext
+// {
+//   int AddStd(int a, int b);
+//   unsafe ClrObject AddDyn(ClrObject* argv, uint argc);
+// }
 
-public static class IBridgeContextEx
-{
-  public static BridgeContextHandle GetHandle(this IBridgeContext api)
-  {
-    var apiType = api.GetType();
 
-    var getMethod = apiType.GetMethod(nameof(IBridgeContext.GetMethod));
-    var getMethodHandle = Marshal.GetFunctionPointerForDelegate(getMethod);
+// public static class IBridgeContextEx
+// {
+//   public static BridgeContextHandle GetHandle(this IBridgeContext api)
+//   {
+//     var apiType = api.GetType();
 
-    var getField = apiType.GetMethod(nameof(IBridgeContext.GetField));
-    var getFieldHandle = Marshal.GetFunctionPointerForDelegate(getField);
+//     var addStd = apiType.GetMethod(nameof(IBridgeContext.AddStd));
+//     var addStdHandle = addStd.MethodHandle.GetFunctionPointer();
 
-    var setField = apiType.GetMethod(nameof(IBridgeContext.SetField));
-    var setFieldHandle = Marshal.GetFunctionPointerForDelegate(setField);
+//     var addDyn = apiType.GetMethod(nameof(IBridgeContext.AddDyn));
+//     var addDynHandle = addDyn.MethodHandle.GetFunctionPointer();
 
-    return new BridgeContextHandle { 
-      GetFieldHandle = getFieldHandle,
-      SetFieldHandle = setFieldHandle,
-      GetMethodHandle = getMethodHandle,
-    };
-  }
-}
+//     return new BridgeContextHandle
+//     {
+//       AddStd = addStdHandle,
+//       AddDyn = addDynHandle,
+//     };
+//   }
+// }

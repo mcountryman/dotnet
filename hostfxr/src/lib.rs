@@ -4,14 +4,14 @@ use std::{
   ptr::{null, null_mut},
 };
 
-use hostfxr_sys::{char_t, hostfxr_delegate_type, hostfxr_handle};
+use dotnet_hostfxr_sys::{char_t, hostfxr_delegate_type, hostfxr_handle};
 pub use library::HostFxrLibrary;
 
 use crate::error::{HostFxrError, HostFxrResult};
 use crate::string::{IntoBytes, IntoPtr, IntoString};
 
 pub mod error;
-mod library;
+pub mod library;
 mod nethost;
 mod parameters;
 mod string;
@@ -30,7 +30,7 @@ pub struct HostFxrContext {
   handle: hostfxr_handle,
   library: HostFxrLibrary,
 
-  get_function_pointer_fn: hostfxr_sys::get_function_pointer_fn,
+  get_function_pointer_fn: dotnet_hostfxr_sys::get_function_pointer_fn,
   load_assembly_and_get_function_pointer: LoadAssemblyAndGetFunctionPointerFn,
 }
 
@@ -39,13 +39,13 @@ impl HostFxrContext {
     let get_function_pointer_fn = Self::get_runtime_delegate(
       handle,
       &library,
-      hostfxr_sys::hostfxr_delegate_type_hdt_get_function_pointer,
+      dotnet_hostfxr_sys::hostfxr_delegate_type_hdt_get_function_pointer,
     )?;
 
     let load_assembly_and_get_function_pointer = Self::get_runtime_delegate(
       handle,
       &library,
-      hostfxr_sys::hostfxr_delegate_type_hdt_load_assembly_and_get_function_pointer,
+      dotnet_hostfxr_sys::hostfxr_delegate_type_hdt_load_assembly_and_get_function_pointer,
     )?;
 
     Ok(Self {

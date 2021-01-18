@@ -1,5 +1,5 @@
 [package]
-name = "hostfxr"
+name = "dotnet_hostfxr"
 version = "0.1.0"
 authors = ["Marvin Countryman <me@maar.vin>"]
 edition = "2018"
@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 libloading = "^0.6"
 lazy_static = "^1.4"
-hostfxr_sys = "^0.1"
+dotnet_hostfxr_sys = "^0.1"
 
 [dev-dependencies]
 wchar = "^0.6"

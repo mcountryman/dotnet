@@ -7,7 +7,7 @@ use std::mem::MaybeUninit;
 use std::os::raw::c_char;
 use std::slice::from_raw_parts;
 
-use hostfxr_sys::hostfxr_initialize_parameters;
+use dotnet_hostfxr_sys::hostfxr_initialize_parameters;
 
 use crate::parameters::HostFxrParameters;
 

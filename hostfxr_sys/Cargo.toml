@@ -1,5 +1,5 @@
 [package]
-name = "hostfxr_sys"
+name = "dotnet_hostfxr_sys"
 version = "0.1.0"
 authors = ["Marvin Countryman <marvinc@siqinc.com>"]
 edition = "2018"

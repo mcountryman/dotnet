@@ -15,7 +15,11 @@ pub fn get_hostfxr_path() -> Result<String, HostFxrError> {
   let mut buf = vec![0; MAX_PATH];
   let mut buf_len = buf.len() as u64;
   let status = unsafe {
-    hostfxr_sys::get_hostfxr_path(buf.as_mut_ptr(), &mut buf_len as *mut _, null_mut())
+    dotnet_hostfxr_sys::get_hostfxr_path(
+      buf.as_mut_ptr(),
+      &mut buf_len as *mut _,
+      null_mut(),
+    )
   };
 
   HostFxrError::from_status(status)?;
