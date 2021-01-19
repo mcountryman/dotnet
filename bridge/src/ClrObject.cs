@@ -89,7 +89,7 @@ namespace Dotnet.Bridge
       {
         switch (Type)
         {
-          case ClrType.Char: return Char;
+          case ClrType.Char: return (int)Char;
           case ClrType.Byte: return Byte;
           case ClrType.SByte: return SByte;
           case ClrType.Boolean: return Boolean;

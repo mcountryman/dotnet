@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub enum ClrObject {
-  Char(i8),
+  Char(u8),
   Byte(u8),
   SByte(i8),
   Boolean(bool),
@@ -79,10 +79,10 @@ mod tests {
 
     let a = ClrObject::Int32(i32::MAX);
     let b = ClrObject::Int32(7);
-    let c = ClrObject::Char(b'a' as i8);
+    let c = ClrObject::Char(69 as _);
     let d: ClrObject = "test tickles".into();
 
-    let args = ManuallyDrop::new(vec![a, b, c, d]);
+    let args = ManuallyDrop::new(vec![c]);
     let (argv, argc) = (args.as_ptr(), args.len());
 
     let buf = unsafe {

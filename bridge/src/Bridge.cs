@@ -17,18 +17,11 @@ public class BridgeContext
 {
   public static unsafe ClrObject Add(ClrObject* args, int argc)
   {
-    Console.Write("arg: [");
-    Console.Write(
-      String.Join(", ",
-        Enumerable.Range(0, argc)
-          .Select(i => new { Type = args[i].Type, Value = args[i].Value }.ToString())
-          .ToArray()
-      )
-    );
+    var a = args[0].Value;
+    var b = args[1].Value;
+    var c = a + b;
 
-    Console.Write("]\n");
-
-    return ClrObject.From((int)0);
+    return ClrObject.From(11);
   }
 
   public static BridgeContextHandle GetHandle()

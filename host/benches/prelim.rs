@@ -1,7 +1,10 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use dotnet_host::ClrObject;
 use dotnet_hostfxr::HostFxrLibrary;
-use std::{fs, mem::{ManuallyDrop, size_of}};
+use std::{
+  fs,
+  mem::{size_of, ManuallyDrop},
+};
 
 type Add = extern "C" fn(argv: *const ClrObject, argc: i32) -> ClrObject;
 type GetBridge = extern "C" fn() -> BridgeContext;
@@ -25,7 +28,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
   let get_bridge: GetBridge = hostfxr
     .load_assembly_and_get_delegate(
-      fs::canonicalize("../bridge/bin/Debug/net5.0/bridge.dll")
+      fs::canonicalize("../bridge/bin/Relese/net5.0/bridge.dll")
         .unwrap()
         .to_str()
         .unwrap(),
@@ -37,36 +40,16 @@ fn criterion_benchmark(c: &mut Criterion) {
 
   let bridge: BridgeContext = get_bridge();
 
-  // c.bench_function("add_std", |b| {
-  //   b.iter(|| {
-  //     let a = CString::new("hello ").unwrap();
-  //     let a = a.into_raw();
-
-  //     let b = CString::new("world").unwrap();
-  //     let b = b.into_raw();
-
-  //     black_box((bridge.add_std)(a, b));
-  //   })
-  // });
-
   c.bench_function("add", |i| {
     i.iter(|| {
-      let a = ClrObject::Int32(4);
-      let b = ClrObject::Int32(7);
+      let a = ClrObject::from("yuge test");
+      let b = ClrObject::from("mawdinawod9h239hjd23j");
 
       let args = ManuallyDrop::new(vec![a, b]);
       let (argv, argc) = (args.as_ptr(), args.len() as i32);
 
-      let arg_d = argv as *const u8;
-      let arg_d = unsafe {
-        let len = size_of::<ClrObject>() / 8;
-        std::slice::from_raw_parts(arg_d, len);
-      };
-
-      panic!("size: {:?}\nargv: {:?}", size_of::<ClrObject>(), arg_d);
-
       match (bridge.add)(argv, argc) {
-        ClrObject::Int32(value) => assert_eq!(value, 10),
+        ClrObject::Int32(value) => assert_eq!(value, 11),
         obj => panic!("Unexpected obj `{:?}`", obj),
       }
     })
