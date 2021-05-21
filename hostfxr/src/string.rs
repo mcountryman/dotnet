@@ -2,14 +2,12 @@
 //!
 //! Due to `hostfxr` APIs using `c_wchar` and `c_char` in different builds an abstraction
 //! for both are needed.  
+use crate::parameters::HostFxrParameters;
+use dotnet_hostfxr_sys::hostfxr_initialize_parameters;
 use std::mem::size_of;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
 use std::slice::from_raw_parts;
-
-use dotnet_hostfxr_sys::hostfxr_initialize_parameters;
-
-use crate::parameters::HostFxrParameters;
 
 /// A value-to-vec conversion with items of variable size.
 pub trait IntoBytes<T> {
@@ -171,9 +169,8 @@ impl<'a> IntoPtr<hostfxr_initialize_parameters> for Option<HostFxrParameters<'a>
 
 #[cfg(test)]
 mod tests {
-  use std::slice;
-
   use super::*;
+  use std::slice;
 
   #[test]
   fn test_into_str_from_c_char() {

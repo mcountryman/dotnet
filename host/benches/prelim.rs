@@ -28,7 +28,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
   let get_bridge: GetBridge = hostfxr
     .load_assembly_and_get_delegate(
-      fs::canonicalize("../bridge/bin/Relese/net5.0/bridge.dll")
+      fs::canonicalize("../bridge/bin/Release/net5.0/bridge.dll")
         .unwrap()
         .to_str()
         .unwrap(),

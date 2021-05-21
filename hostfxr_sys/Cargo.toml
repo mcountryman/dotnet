@@ -5,12 +5,14 @@ authors = ["Marvin Countryman <marvinc@siqinc.com>"]
 edition = "2018"
 
 [features]
-default = [
-  # Defaults vary per-system, check build.rs for details
-]
+# Defaults vary per-system, check build.rs for details
+default = ["v5_0_1"]
 
 # Determines cpp runtime/nethost link type
 static = []
+
+v5_0_6 = []
+v5_0_1 = []
 
 [build-dependencies]
 zip = "^0.5"

@@ -66,7 +66,7 @@ impl HostFxrContext {
   /// ```
   /// use std::path::Path;
   /// use std::error::Error;
-  /// use hostfxr::HostFxrContext;
+  /// use dotnet_hostfxr::HostFxrContext;
   ///
   /// fn add_probing_directory<P: AsRef<str>>(
   ///   ctx: HostFxrContext,
@@ -112,7 +112,7 @@ impl HostFxrContext {
   ///
   /// # Example
   /// ```
-  /// use hostfxr::HostFxrContext;
+  /// use dotnet_hostfxr::HostFxrContext;
   ///
   /// fn dump_property(ctx: HostFxrContext) {
   ///    println!(
@@ -146,7 +146,7 @@ impl HostFxrContext {
   ///
   /// # Example
   /// ```
-  /// use hostfxr::HostFxrContext;
+  /// use dotnet_hostfxr::HostFxrContext;
   ///
   /// fn dump_properties(ctx: HostFxrContext) {
   ///   for (name, value) in ctx.get_runtime_properties().unwrap() {
@@ -197,7 +197,7 @@ impl HostFxrContext {
   /// # Example
   /// ```
   ///
-  /// use hostfxr::HostFxrLibrary;
+  /// use dotnet_hostfxr::HostFxrLibrary;
   ///
   /// fn run_app<A: AsRef<str>>(exe_path: A) {
   ///   let hostfxr = HostFxrLibrary::new().expect("Failed to load hostfxr");
@@ -241,7 +241,7 @@ impl HostFxrContext {
   ///
   /// # Example
   /// ```
-  /// use hostfxr::HostFxrContext;
+  /// use dotnet_hostfxr::HostFxrContext;
   ///
   /// type AddFn = extern "C" fn(a: i32, b: i32) -> i32;
   ///
@@ -314,59 +314,5 @@ impl Drop for HostFxrContext {
     let close = close.lift_option().unwrap();
 
     unsafe { close(self.handle) };
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use crate::HostFxrLibrary;
-
-  type InitializeFn = extern "C" fn();
-
-  #[test]
-  fn test_hostfxr_new() {
-    let hostfxr = HostFxrLibrary::new().unwrap();
-    let hostfxr = hostfxr
-      // .initialize_command_line(
-      //   &[
-      //     std::fs::canonicalize("../bridge/bin/Debug/net5.0/bridge.dll")
-      //       .unwrap()
-      //       .to_str()
-      //       .unwrap(),
-      //     "Hello There",
-      //     "CSharp",
-      //   ],
-      //   None,
-      // )
-      .initialize_runtime_config(
-        std::fs::canonicalize("../bridge/bridge.runtimeconfig.json")
-          .unwrap()
-          .to_str()
-          .unwrap(),
-        None,
-      )
-      .unwrap();
-
-    hostfxr
-      .get_runtime_properties()
-      .unwrap()
-      .into_iter()
-      .for_each(|(name, value)| {
-        println!("`{}` = `{}`", name, value);
-      });
-
-    let initialize: InitializeFn = hostfxr
-      .load_assembly_and_get_delegate(
-        std::fs::canonicalize("../bridge/bin/Debug/net5.0/bridge.dll")
-          .unwrap()
-          .to_str()
-          .unwrap(),
-        "Bridge, bridge, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-        "Initialize",
-        "Bridge+InitializeFn, bridge, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-      )
-      .unwrap();
-
-    initialize();
   }
 }

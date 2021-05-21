@@ -15,10 +15,11 @@ public class Bridge
 
 public class BridgeContext
 {
-  public static unsafe ClrObject Add(ClrObject* args, int argc)
+  public static unsafe ClrObject Add(byte* buf, int argc)
   {
-    var a = args[0].Value;
-    var b = args[1].Value;
+    var args = ClrObject.From(buf, argc);
+    var a = (string)args[0].Value;
+    var b = (string)args[1].Value;
     var c = a + b;
 
     return ClrObject.From(11);
