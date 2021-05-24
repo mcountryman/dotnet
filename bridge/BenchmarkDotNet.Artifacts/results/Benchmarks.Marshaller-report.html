@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Benchmarks.Marshaller-20210521-212254</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet=v0.13.0, OS=macOS Big Sur 11.2 (20D5042d) [Darwin 20.3.0]
+Intel Core i9-9880H CPU 2.30GHz, 1 CPU, 16 logical and 8 physical cores
+.NET SDK=5.0.101
+  [Host]     : .NET 5.0.1 (5.0.120.57516), X64 RyuJIT
+  DefaultJob : .NET 5.0.1 (5.0.120.57516), X64 RyuJIT
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th>
+</tr>
+</thead><tbody><tr><td>HeapPointer</td><td>37.90 ns</td><td>1.060 ns</td><td>3.124 ns</td><td>36.97 ns</td>
+</tr><tr><td>HeapRefByte</td><td>NA</td><td>NA</td><td>NA</td><td>NA</td>
+</tr><tr><td>Registers</td><td>31.25 ns</td><td>1.033 ns</td><td>2.981 ns</td><td>30.78 ns</td>
+</tr></tbody></table>
+</body>
+</html>

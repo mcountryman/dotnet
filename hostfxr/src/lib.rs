@@ -1,17 +1,17 @@
+use dotnet_hostfxr_sys::{char_t, hostfxr_delegate_type, hostfxr_handle};
 use std::mem::MaybeUninit;
 use std::{
   collections::HashMap,
   ptr::{null, null_mut},
 };
-
-use dotnet_hostfxr_sys::{char_t, hostfxr_delegate_type, hostfxr_handle};
-pub use library::HostFxrLibrary;
-
-use crate::error::{HostFxrError, HostFxrResult};
-use crate::string::{IntoBytes, IntoPtr, IntoString};
+use string::{IntoBytes, IntoPtr, IntoString};
 
 pub mod error;
+pub use error::*;
+
 pub mod library;
+pub use library::*;
+
 mod nethost;
 mod parameters;
 mod string;
@@ -26,7 +26,7 @@ type LoadAssemblyAndGetFunctionPointerFn = unsafe extern "C" fn(
 ) -> ::std::os::raw::c_int;
 
 #[derive(Debug)]
-pub struct HostFxrContext {
+pub struct HostFxr {
   handle: hostfxr_handle,
   library: HostFxrLibrary,
 
@@ -34,7 +34,7 @@ pub struct HostFxrContext {
   load_assembly_and_get_function_pointer: LoadAssemblyAndGetFunctionPointerFn,
 }
 
-impl HostFxrContext {
+impl HostFxr {
   pub fn new(handle: hostfxr_handle, library: HostFxrLibrary) -> HostFxrResult<Self> {
     let get_function_pointer_fn = Self::get_runtime_delegate(
       handle,
@@ -66,10 +66,10 @@ impl HostFxrContext {
   /// ```
   /// use std::path::Path;
   /// use std::error::Error;
-  /// use dotnet_hostfxr::HostFxrContext;
+  /// use dotnet_hostfxr::HostFxr;
   ///
   /// fn add_probing_directory<P: AsRef<str>>(
-  ///   ctx: HostFxrContext,
+  ///   ctx: HostFxr,
   ///   path: P,
   /// ) -> Result<(), Box<dyn Error>> {
   ///   const NAME: &str = "PROBING_DIRECTORIES";
@@ -112,9 +112,9 @@ impl HostFxrContext {
   ///
   /// # Example
   /// ```
-  /// use dotnet_hostfxr::HostFxrContext;
+  /// use dotnet_hostfxr::HostFxr;
   ///
-  /// fn dump_property(ctx: HostFxrContext) {
+  /// fn dump_property(ctx: HostFxr) {
   ///    println!(
   ///       "`RUNTIME_IDENTIFIER` = `{}`",
   ///       ctx.get_runtime_property("RUNTIME_IDENTIFIER").unwrap()
@@ -146,9 +146,9 @@ impl HostFxrContext {
   ///
   /// # Example
   /// ```
-  /// use dotnet_hostfxr::HostFxrContext;
+  /// use dotnet_hostfxr::HostFxr;
   ///
-  /// fn dump_properties(ctx: HostFxrContext) {
+  /// fn dump_properties(ctx: HostFxr) {
   ///   for (name, value) in ctx.get_runtime_properties().unwrap() {
   ///     println!("`{}` = `{}`", name, value);
   ///   }
@@ -241,11 +241,11 @@ impl HostFxrContext {
   ///
   /// # Example
   /// ```
-  /// use dotnet_hostfxr::HostFxrContext;
+  /// use dotnet_hostfxr::HostFxr;
   ///
   /// type AddFn = extern "C" fn(a: i32, b: i32) -> i32;
   ///
-  /// fn get_add_fn(ctx: HostFxrContext) -> AddFn {
+  /// fn get_add_fn(ctx: HostFxr) -> AddFn {
   ///   ctx.load_assembly_and_get_delegate(
   ///     std::fs::canonicalize("../bridge/bin/Debug/net5.0/bridge.dll")
   ///       .unwrap()
@@ -308,7 +308,7 @@ impl HostFxrContext {
   }
 }
 
-impl Drop for HostFxrContext {
+impl Drop for HostFxr {
   fn drop(&mut self) {
     let close = self.library.close.clone();
     let close = close.lift_option().unwrap();

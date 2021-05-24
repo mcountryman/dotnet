@@ -1,46 +1,35 @@
 ﻿using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Reflection;
+using System.Collections.Generic;
 using Dotnet.Bridge;
+using Dotnet.Bridge.Utilities;
 
-public class Bridge
-{
-  public delegate BridgeContextHandle GetContextHandleFn();
-
-  public static BridgeContextHandle GetContextHandle()
-  {
-    return BridgeContext.GetHandle();
-  }
-}
-
-public class BridgeContext
-{
-  public static unsafe ClrObject Add(byte* buf, int argc)
-  {
-    var args = ClrObject.From(buf, argc);
-    var a = (string)args[0].Value;
-    var b = (string)args[1].Value;
-    var c = a + b;
-
-    return ClrObject.From(11);
-  }
-
-  public static BridgeContextHandle GetHandle()
-  {
-    var apiType = typeof(BridgeContext);
-
-    var add = apiType.GetMethod(nameof(Add));
-    var addHandle = add.MethodHandle.GetFunctionPointer();
-
-    return new BridgeContextHandle
-    {
-      Add = addHandle,
-    };
-  }
-}
 
 [StructLayout(LayoutKind.Sequential)]
-public struct BridgeContextHandle
-{
-  public IntPtr Add;
+public unsafe class Bridge {
+  [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+  public delegate BridgeResult<IntPtr> PrepareInvokeDelegate(
+    string path,
+    BridgeObjectType retType,
+    BridgeObjectType[] types
+  );
+
+  public PrepareInvokeDelegate PrepareInvoke = (path, retType, types) => {
+    try {
+      var method = InvokeBuilder.Prepare(path, retType, types);
+      return BridgeResult.FromValue(IntPtr.Zero);
+    } catch (Exception ex) {
+      return BridgeResult.FromException<IntPtr>(ex);
+    }
+  };
+
+
+  [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+  public delegate Bridge GetBridgeDelegate();
+
+  public static Bridge GetBridge() {
+    return new Bridge();
+  }
 }

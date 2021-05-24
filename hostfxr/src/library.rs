@@ -8,7 +8,7 @@ use crate::{
   error::{HostFxrError, HostFxrResult},
   parameters::HostFxrParameters,
 };
-use crate::{nethost::get_hostfxr_path, HostFxrContext};
+use crate::{nethost::get_hostfxr_path, HostFxr};
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 
@@ -70,7 +70,7 @@ impl HostFxrLibrary {
     &self,
     args: A,
     parameters: Option<HostFxrParameters>,
-  ) -> HostFxrResult<HostFxrContext>
+  ) -> HostFxrResult<HostFxr>
   where
     A: IntoIterator<Item = I>,
     I: IntoBytes<char_t>,
@@ -102,7 +102,7 @@ impl HostFxrLibrary {
     };
 
     HostFxrError::from_status(flag)?;
-    HostFxrContext::new(unsafe { handle.assume_init() }, self.clone())
+    HostFxr::new(unsafe { handle.assume_init() }, self.clone())
   }
 
   /// Initializes the hosting components using a .runtimeconfig.json file
@@ -123,7 +123,7 @@ impl HostFxrLibrary {
     &self,
     runtime_config: R,
     parameters: Option<HostFxrParameters>,
-  ) -> HostFxrResult<HostFxrContext>
+  ) -> HostFxrResult<HostFxr>
   where
     R: IntoBytes<char_t>,
   {
@@ -142,7 +142,7 @@ impl HostFxrLibrary {
     };
 
     HostFxrError::from_status(flag)?;
-    HostFxrContext::new(unsafe { handle.assume_init() }, self.clone())
+    HostFxr::new(unsafe { handle.assume_init() }, self.clone())
   }
 }
 
