@@ -2,20 +2,21 @@ using System;
 using System.Runtime.InteropServices;
 
 namespace Dotnet.Bridge {
-
-  [StructLayout(LayoutKind.Sequential)]
-  public struct BridgeResult<T> {
-    [MarshalAs(UnmanagedType.LPStruct)]
-    public T Value;
+  public interface IBridgeResult<T> {
+    T Value { get; }
   }
 
-  public class BridgeResult {
-    public static BridgeResult<T> FromValue<T>(T value) {
-      return new BridgeResult<T>();
+  [StructLayout(LayoutKind.Sequential)]
+  public struct PrepareInvokeResult : IBridgeResult<IntPtr> {
+    public IntPtr Value { get; init; }
+
+    public static PrepareInvokeResult FromValue(IntPtr value) {
+      return new PrepareInvokeResult() { Value = value };
     }
 
-    public static BridgeResult<T> FromException<T>(Exception ex) {
-      return new BridgeResult<T>();
+    public static PrepareInvokeResult FromException<T>(Exception ex) {
+      // return new PrepareInvokeResult();
+      throw ex;
     }
   }
 }

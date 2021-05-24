@@ -1,7 +1,7 @@
 using System;
 
 namespace Dotnet.Bridge {
-  public enum BridgeObjectType : uint {
+  public enum BridgeObjectType : byte {
     Char,
     Byte,
     SByte,

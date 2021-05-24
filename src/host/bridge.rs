@@ -1,27 +1,40 @@
-use crate::{HostResult, Object};
-use std::{ffi::CString, os::raw::c_char};
+use crate::{HostResult, ObjectKind};
+use std::{
+  ffi::{CStr, CString},
+  os::raw::c_char,
+};
 
-type Invoke = unsafe fn(
-  //
+type PrepareInvoke = unsafe extern "stdcall" fn(
   path: *const c_char,
-  argv: *const Object,
+  ret: ObjectKind,
+  argv: *const ObjectKind,
   argc: u16,
-) -> HostResult<Object>;
+) -> HostResult<*const u8>;
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct Bridge {
-  invoke_static: Invoke,
+  prepare_invoke: PrepareInvoke,
 }
 
 impl Bridge {
-  pub fn invoke_static(&self, path: &str, args: &[Object]) -> HostResult<Object> {
+  pub fn prepare_invoke<F>(
+    &self,
+    path: &str,
+    ret: ObjectKind,
+    args: &[ObjectKind],
+  ) -> &F {
     let path = CString::new(path).unwrap();
-    let path = path.as_ptr();
+    let path = path.into_raw();
 
     let argc = args.len() as _;
     let argv = args.as_ptr();
 
-    unsafe { (self.invoke_static)(path, argv, argc) }
+    let ptr = unsafe {
+      let result = (self.prepare_invoke)(path, ret, argv, argc);
+      &*(result.value as *const F)
+    };
+
+    ptr
   }
 }
