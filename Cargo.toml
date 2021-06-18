@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+
 dotnet_hostfxr = "*"
 
 [workspace]
 members = ["hostfxr", "hostfxr_sys"]
 
 [patch.crates-io]
-dotnet_hostfxr = { path = "./hostfxr" }
-dotnet_hostfxr_sys = { path = "./hostfxr_sys" }
+dotnet_hostfxr = { path="./hostfxr" }
+dotnet_hostfxr_sys = { path="./hostfxr_sys" }

@@ -1,18 +1,25 @@
-pub mod host;
-pub use host::*;
-
-pub mod object;
-pub use object::*;
-
+pub mod class;
 pub mod exception;
-pub use exception::*;
+pub mod gc;
+pub mod marshal;
+pub mod method;
+pub mod types;
 
-pub struct Runtime {}
+use gc::GcHandle;
+use method::Method;
+use std::error::Error;
 
-/*
+pub trait Host: Sized {
+  type Error: Error;
 
-dotnet::Runtime::core().init()?;
+  fn get() -> Result<Self, Self::Error>;
 
-dotnet::invoke!(System.Console.WriteLine, "Hello dotnet!");
+  fn method<M, A>(&self, path: &str) -> Result<M, Self::Error>
+  where
+    M: Method<A>,
+    // Not required for this to work but, prevents returning non-plain `fn(..) -> ..` fns by
+    // requiring return to be `Fn(..) -> ..`
+    M::Fn: Method<A>;
 
-*/
+  fn release<T>(&self, handle: GcHandle<T, Self>) -> Result<M, Self::Error>;
+}

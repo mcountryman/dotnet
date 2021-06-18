@@ -1,45 +1,43 @@
-pub trait Method<Args = ()> {
-  type Return;
+use crate::{
+  marshal::{MarshalFrom, MarshalTo},
+  types::TypeId,
+};
 
-  fn invoke(&self, args: Args) -> Self::Return;
+pub trait Method<Args> {
+  type Fn;
+  type Ret;
+
+  fn ret_type_id() -> TypeId;
+  fn arg_type_ids() -> Vec<TypeId>;
 }
 
-impl<F, Ret, A, B, C> Method<(A, B, C)> for F
-where
-  F: Fn(&A, &B, &C) -> Ret,
-{
-  type Return = Ret;
+macro_rules! method_impl {
+  ($($arg:ident)*) => {
+    impl<_F, _R, $($arg),*> Method<($($arg,)*)> for _F
+    where
+      _F: Fn($($arg),*) -> _R,
+      _R: MarshalFrom,
+      $($arg: MarshalTo),*
+    {
+      type Fn = fn($($arg),*) -> _R;
+      type Ret = _R;
 
-  fn invoke(&self, args: (A, B, C)) -> Self::Return {
-    // #[allow(non_snake_case)]
-    // let ($($arg,)*) = args;
-    // (self)($($arg,)*)
-    todo!()
-  }
+      fn ret_type_id() -> TypeId {
+        _R::id()
+      }
+
+      fn arg_type_ids() -> Vec<TypeId> {
+        vec![$($arg::id()),*]
+      }
+    }
+  };
 }
 
-// macro_rules! method_impl {
-//   ($($arg:ident)*) => {
-//     impl<F, Ret, $($arg,)*> Method<($($arg,)*)> for F
-//     where
-//       F: Fn($($arg,)*) -> Ret,
-//     {
-//       type Return = Ret;
-
-//       fn invoke(&self, args: ($($arg,)*)) -> Self::Return {
-//         // #[allow(non_snake_case)]
-//         // let ($($arg,)*) = args;
-//         // (self)($($arg,)*)
-//         todo!()
-//       }
-//     }
-//   };
-// }
-
-// method_impl! { A }
-// method_impl! { A, B }
-// method_impl! { A, B, C }
-// method_impl! { A, B, C, D }
-// method_impl! { A, B, C, D, E }
-// method_impl! { A, B, C, D, E, F }
-// method_impl! { A, B, C, D, E, F, G }
+method_impl! {}
+method_impl! { A }
+method_impl! { A B }
+method_impl! { A B C }
+method_impl! { A B C D }
+method_impl! { A B C D E }
+method_impl! { A B C D E F }
+method_impl! { A B C D E F G }
