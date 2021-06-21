@@ -1,16 +1,16 @@
 pub mod class;
 pub mod exception;
 pub mod gc;
-pub mod host;
 pub mod marshal;
 pub mod method;
+pub mod runtime;
 pub mod types;
 
 use gc::GcHandle;
 use method::Method;
 use std::error::Error;
 
-pub trait Host: Sized {
+pub trait Runtime: Sized {
   type Error: Error;
 
   fn get() -> Result<Self, Self::Error>;

@@ -1,4 +1,4 @@
-use crate::{class::Class, Host};
+use crate::{class::Class, runtime::Global, Runtime};
 use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -27,24 +27,24 @@ pub enum TypeId {
 }
 
 #[derive(Debug)]
-pub struct Type<H: Host>(Class<H>);
+pub struct Type<R: Runtime = Global>(Class<R>);
 
-impl<H: Host> Type<H> {
-  pub unsafe fn new_unchecked(class: Class<H>) -> Self {
+impl<R: Runtime> Type<R> {
+  pub unsafe fn new_unchecked(class: Class<R>) -> Self {
     Self(class)
   }
 
-  pub fn get_name(&self) -> Result<String, H::Error> {
+  pub fn get_name(&self) -> Result<String, R::Error> {
     self.get_property("Name")
   }
 
-  pub fn is_class(&self) -> Result<bool, H::Error> {
+  pub fn is_class(&self) -> Result<bool, R::Error> {
     self.get_property("IsClass")
   }
 }
 
-impl<H: Host> Deref for Type<H> {
-  type Target = Class<H>;
+impl<R: Runtime> Deref for Type<R> {
+  type Target = Class<R>;
 
   fn deref(&self) -> &Self::Target {
     &self.0

@@ -1,8 +1,55 @@
-use dotnet_hostfxr::HostFxr;
+use crate::Runtime;
+use dotnet_hostfxr::{HostFxr, HostFxrResult};
+use once_cell::unsync::OnceCell;
+use std::sync::Arc;
 
-#[derive(Debug)]
-pub struct CoreHost {
-  host: HostFxr,
+static INSTANCE: OnceCell<HostFxrRuntime> = OnceCell::new();
+
+#[derive(Debug, Clone)]
+pub struct HostFxrRuntime {
+  host: Arc<HostFxr>,
+}
+
+impl HostFxrRuntime {
+  fn new() -> HostFxrResult<Self> {
+    todo!()
+  }
+}
+
+impl Runtime for HostFxrRuntime {
+  type Error = dotnet_hostfxr::HostFxrError;
+
+  fn get() -> Result<Self, Self::Error> {
+    match INSTANCE.get() {
+      Some(instance) => Ok(instance.clone()),
+      None => {
+        INSTANCE
+          .set(Self::new()?)
+          .expect("Global HostFxr instance already set");
+
+        Ok(
+          INSTANCE
+            .get()
+            .expect("Global HostFxr not initialized")
+            .clone(),
+        )
+      }
+    }
+  }
+
+  fn method<M, A>(&self, path: &str) -> Result<M, Self::Error>
+  where
+    M: crate::method::Method<A>,
+    // Not required for this to work but, prevents returning non-plain `fn(..) -> ..` fns by
+    // requiring return to be `Fn(..) -> ..`
+    M::Fn: crate::method::Method<A>,
+  {
+    todo!()
+  }
+
+  fn release<T>(&self, handle: &crate::gc::GcHandle<T, Self>) -> Result<(), Self::Error> {
+    todo!()
+  }
 }
 
 // pub mod bridge;

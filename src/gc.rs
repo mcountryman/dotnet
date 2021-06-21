@@ -1,14 +1,13 @@
+use crate::{runtime::Global, Runtime};
 use std::{marker::PhantomData, ptr::NonNull};
 
-use crate::Host;
-
 #[derive(Debug)]
-pub struct GcHandle<T, H: Host> {
+pub struct GcHandle<T, R: Runtime = Global> {
   ptr: NonNull<T>,
-  phantom: PhantomData<H>,
+  phantom: PhantomData<R>,
 }
 
-impl<T, H: Host> Drop for GcHandle<T, H> {
+impl<T, H: Runtime> Drop for GcHandle<T, H> {
   fn drop(&mut self) {
     if let Ok(host) = H::get() {
       host.release(self);

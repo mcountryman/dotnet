@@ -1,39 +1,40 @@
 use crate::{
   gc::GcHandle,
   marshal::{Marshal, MarshalError, MarshalFrom, MarshalTo},
+  runtime::Global,
   types::{Type, TypeId},
-  Host,
+  Runtime,
 };
 use std::{ffi::c_void, marker::PhantomData};
 
 #[derive(Debug)]
-pub struct Class<H: Host> {
-  handle: GcHandle<(), H>,
-  phantom: PhantomData<H>,
+pub struct Class<R: Runtime = Global> {
+  handle: GcHandle<(), R>,
+  phantom: PhantomData<R>,
 }
 
-impl<H: Host> Class<H> {
-  pub fn new(handle: GcHandle<(), H>) -> Self {
+impl<R: Runtime> Class<R> {
+  pub fn new(handle: GcHandle<(), R>) -> Self {
     Self {
       handle,
       phantom: Default::default(),
     }
   }
 
-  pub fn get_field<M: MarshalFrom>(&self, name: &str) -> Result<M, H::Error> {
+  pub fn get_field<M: MarshalFrom>(&self, name: &str) -> Result<M, R::Error> {
     todo!()
   }
 
-  pub fn get_property<M: MarshalFrom>(&self, name: &str) -> Result<M, H::Error> {
+  pub fn get_property<M: MarshalFrom>(&self, name: &str) -> Result<M, R::Error> {
     todo!()
   }
 
-  pub fn get_type(&mut self) -> Result<Type<H>, H::Error> {
+  pub fn get_type(&mut self) -> Result<Type<R>, R::Error> {
     todo!()
   }
 }
 
-impl<H: Host> Marshal for Class<H> {
+impl<R: Runtime> Marshal for Class<R> {
   type Managed = *mut c_void;
 
   fn id() -> TypeId {
@@ -41,13 +42,13 @@ impl<H: Host> Marshal for Class<H> {
   }
 }
 
-impl<H: Host> MarshalTo for Class<H> {
+impl<R: Runtime> MarshalTo for Class<R> {
   fn marshal_to(self) -> Result<Self::Managed, MarshalError> {
     todo!()
   }
 }
 
-impl<H: Host> MarshalFrom for Class<H> {
+impl<R: Runtime> MarshalFrom for Class<R> {
   fn marshal_from(from: Self::Managed) -> Result<Self, MarshalError> {
     todo!()
   }
