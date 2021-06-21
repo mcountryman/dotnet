@@ -1,5 +1,0 @@
-// Validating benchmarks:
-// ***** BenchmarkRunner: Start   *****
-// ***** Found 2 benchmark(s) in total *****
-// ***** Building 1 exe(s) in Parallel: Start   *****
-// start dotnet restore  /p:UseSharedCompilation=false /p:BuildInParallel=false /m:1 /p:Deterministic=true /p:Optimize=true in /Users/mcountryman/Development/dotnet/bridge/bin/Benchmark/net5.0/e2af0acb-268f-4b7f-a633-1c4aed0c51bb
