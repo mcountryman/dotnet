@@ -1,6 +1,7 @@
 use crate::{class::Class, runtime::Global, Runtime};
 use std::ops::Deref;
 
+#[repr(C, u8)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TypeId {
   Char,

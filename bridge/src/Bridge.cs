@@ -1,58 +1,118 @@
 ﻿using System;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Reflection;
-using System.Collections.Generic;
-using Dotnet.Bridge;
-using Dotnet.Bridge.Utilities;
-using System.Security.Permissions;
-
-[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-public delegate Bridge GetBridgeDelegate();
-
-[UnmanagedFunctionPointer(CallingConvention.StdCall)]
-public unsafe delegate PrepareInvokeResult PrepareInvokeDelegate(
-  [MarshalAs(UnmanagedType.LPUTF8Str)]
-  string path,
-  BridgeObjectType retType,
-  BridgeObjectType* types,
-  ushort typesLength
-);
 
 [StructLayout(LayoutKind.Sequential)]
-public unsafe ref struct Bridge {
-  public IntPtr PrepareInvoke;
+public unsafe struct Bridge {
+  IntPtr Release;
+  IntPtr GetMethod;
+  int Test;
 
-  public static int Add(int a, int b) {
-    return a + b;
+  public static BridgeResult ReleaseImp(IntPtr handle) {
+    Console.WriteLine("ReleaseImp(IntPtr handle)");
+
+    throw new NotImplementedException();
   }
 
-  public static PrepareInvokeResult PrepareInvokeImp(
+  public static int GetMethodImp(
+    [MarshalAs(UnmanagedType.LPUTF8Str)]
     string path,
-    BridgeObjectType retType,
-    BridgeObjectType* typesPtr,
+    int* types,
     ushort typesLength
   ) {
-    Console.WriteLine($"PrepareInvokeImp({(byte)retType})");
+    Console.WriteLine("GetMethodImp(..)");
 
-    var types = new BridgeObjectType[typesLength];
-    for (var i = 0; i < types.Length; i++) {
-      types[i] = *typesPtr;
-      typesPtr++;
-    }
-
-    // try {
-    var method = InvokeBuilder.Prepare(path, retType, types);
-    return PrepareInvokeResult.FromValue(method);
-    // } catch (Exception ex) {
-    //   return PrepareInvokeResult.FromException<IntPtr>(ex);
-    // }
+    throw new NotImplementedException();
   }
 
+  public static IntPtr GetBridge() {
+    Console.WriteLine("GetBridge()");
 
-  public static Bridge GetBridge() {
-    return new Bridge {
-      PrepareInvoke = Marshal.GetFunctionPointerForDelegate<PrepareInvokeDelegate>(PrepareInvokeImp),
+    var release = Marshal.GetFunctionPointerForDelegate((ReleaseDelegate)ReleaseImp);
+    Console.WriteLine("release: 0x{0:X}", release);
+
+    var bridge = new Bridge {
+      Release = release,
+      GetMethod = Marshal.GetFunctionPointerForDelegate((GetMethodDelegate)GetMethodImp),
+      Test = 69420
+    };
+
+    var handle = GCHandle.Alloc(bridge, GCHandleType.Pinned);
+
+    Console.WriteLine("handle: 0x{0:X}", (IntPtr)handle);
+
+    return (IntPtr)handle;
+  }
+}
+
+public enum BridgeStatus : byte {
+  Ok,
+  Err
+}
+
+public enum BridgeError : byte { }
+
+[StructLayout(LayoutKind.Explicit)]
+public struct BridgeResult<T> {
+  [FieldOffset(0)]
+  public BridgeStatus Status;
+  [FieldOffset(1)]
+  public T Value;
+  [FieldOffset(1)]
+  public BridgeError Error;
+
+  public static BridgeResult<T> Ok(T value) {
+    return new BridgeResult<T> {
+      Status = BridgeStatus.Ok,
+      Value = value,
+      Error = default!,
+    };
+  }
+
+  public static BridgeResult<T> Err(BridgeError err) {
+    return new BridgeResult<T> {
+      Status = BridgeStatus.Err,
+      Value = default!,
+      Error = err,
     };
   }
 }
+
+[StructLayout(LayoutKind.Explicit)]
+public struct BridgeResult {
+  [FieldOffset(0)]
+  public BridgeStatus Status;
+  [FieldOffset(1)]
+  public IntPtr Value;
+  [FieldOffset(1)]
+  public BridgeError Error;
+
+  public static BridgeResult Ok() {
+    return new BridgeResult {
+      Status = BridgeStatus.Ok,
+      Value = IntPtr.Zero,
+      Error = default!,
+    };
+  }
+
+  public static BridgeResult Err(BridgeError err) {
+    return new BridgeResult {
+      Value = IntPtr.Zero,
+      Status = BridgeStatus.Err,
+      Error = err,
+    };
+  }
+}
+
+[UnmanagedFunctionPointer(CallingConvention.StdCall)]
+public delegate IntPtr GetBridgeDelegate();
+
+[UnmanagedFunctionPointer(CallingConvention.StdCall)]
+public unsafe delegate int GetMethodDelegate(
+  [MarshalAs(UnmanagedType.LPUTF8Str)]
+  string path,
+  int* types,
+  ushort typesLength
+);
+
+[UnmanagedFunctionPointer(CallingConvention.StdCall)]
+public unsafe delegate BridgeResult ReleaseDelegate(IntPtr handle);

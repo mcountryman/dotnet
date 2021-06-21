@@ -190,7 +190,7 @@ pub struct GetRuntimePropertyValueSymbol<'lib>(
 impl<'lib> GetRuntimePropertyValueSymbol<'lib> {
   pub fn new(library: &'lib Library) -> HostFxrResult<Self> {
     Ok(Self(unsafe {
-      library.get(b"hostfxr_get_runtime_property_value_fn")?
+      library.get(b"hostfxr_get_runtime_property_value")?
     }))
   }
 
@@ -206,7 +206,7 @@ impl<'lib> GetRuntimePropertyValueSymbol<'lib> {
       .0
       .clone()
       .lift_option()
-      .expect("Symbol `hostfxr_get_runtime_property_value_fn` not found");
+      .expect("Symbol `hostfxr_get_runtime_property_value` not found");
 
     let name = name.into_fxr_bytes();
     let name = name.as_ptr();
@@ -220,7 +220,7 @@ impl<'lib> GetRuntimePropertyValueSymbol<'lib> {
   }
 }
 
-/// Safely wraps `hostfxr_get_runtime_properties_fn` calls
+/// Safely wraps `hostfxr_get_runtime_properties` calls
 #[derive(Debug, Clone)]
 pub struct GetRuntimePropertiesSymbol<'lib>(
   Symbol<'lib, dotnet_hostfxr_sys::hostfxr_get_runtime_properties_fn>,
@@ -229,7 +229,7 @@ pub struct GetRuntimePropertiesSymbol<'lib>(
 impl<'lib> GetRuntimePropertiesSymbol<'lib> {
   pub fn new(library: &'lib Library) -> HostFxrResult<Self> {
     Ok(Self(unsafe {
-      library.get(b"hostfxr_get_runtime_properties_fn")?
+      library.get(b"hostfxr_get_runtime_properties")?
     }))
   }
 
@@ -242,7 +242,7 @@ impl<'lib> GetRuntimePropertiesSymbol<'lib> {
       .0
       .clone()
       .lift_option()
-      .expect("Symbol `hostfxr_get_runtime_properties_fn` not found");
+      .expect("Symbol `hostfxr_get_runtime_properties` not found");
 
     let mut properties = HashMap::new();
 
@@ -276,13 +276,13 @@ impl<'lib> GetRuntimePropertiesSymbol<'lib> {
   }
 }
 
-/// Safely wraps `hostfxr_run_app_fn` calls
+/// Safely wraps `hostfxr_run_app` calls
 #[derive(Debug, Clone)]
 pub struct RunAppSymbol<'lib>(Symbol<'lib, dotnet_hostfxr_sys::hostfxr_run_app_fn>);
 
 impl<'lib> RunAppSymbol<'lib> {
   pub fn new(library: &'lib Library) -> HostFxrResult<Self> {
-    Ok(Self(unsafe { library.get(b"hostfxr_run_app_fn")? }))
+    Ok(Self(unsafe { library.get(b"hostfxr_run_app")? }))
   }
 
   /// Run app
@@ -291,13 +291,13 @@ impl<'lib> RunAppSymbol<'lib> {
       .0
       .clone()
       .lift_option()
-      .expect("Symbol `hostfxr_run_app_fn` not found");
+      .expect("Symbol `hostfxr_run_app` not found");
 
     HostFxrError::from_status(unsafe { symbol(handle.as_mut()) })
   }
 }
 
-/// Safely wraps `hostfxr_get_runtime_delegate_fn` calls
+/// Safely wraps `hostfxr_get_runtime_delegate` calls
 #[derive(Debug, Clone)]
 pub struct GetRuntimeDelegateSymbol<'lib>(
   Symbol<'lib, dotnet_hostfxr_sys::hostfxr_get_runtime_delegate_fn>,
@@ -306,7 +306,7 @@ pub struct GetRuntimeDelegateSymbol<'lib>(
 impl<'lib> GetRuntimeDelegateSymbol<'lib> {
   pub fn new(library: &'lib Library) -> HostFxrResult<Self> {
     Ok(Self(unsafe {
-      library.get(b"hostfxr_get_runtime_delegate_fn")?
+      library.get(b"hostfxr_get_runtime_delegate")?
     }))
   }
 
@@ -319,7 +319,7 @@ impl<'lib> GetRuntimeDelegateSymbol<'lib> {
       .0
       .clone()
       .lift_option()
-      .expect("Symbol `hostfxr_get_runtime_delegate_fn` not found");
+      .expect("Symbol `hostfxr_get_runtime_delegate` not found");
 
     let mut delegate = MaybeUninit::<D::Fn>::uninit();
     let delegate_ptr = delegate.as_mut_ptr() as *mut _ as *mut *mut _;
@@ -331,13 +331,13 @@ impl<'lib> GetRuntimeDelegateSymbol<'lib> {
   }
 }
 
-/// Safely wraps `hostfxr_close_fn` calls
+/// Safely wraps `hostfxr_close` calls
 #[derive(Debug, Clone)]
 pub struct CloseSymbol<'lib>(Symbol<'lib, dotnet_hostfxr_sys::hostfxr_close_fn>);
 
 impl<'lib> CloseSymbol<'lib> {
   pub fn new(library: &'lib Library) -> HostFxrResult<Self> {
-    Ok(Self(unsafe { library.get(b"hostfxr_close_fn")? }))
+    Ok(Self(unsafe { library.get(b"hostfxr_close")? }))
   }
 
   /// Close runtime handle

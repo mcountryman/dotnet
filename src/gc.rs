@@ -7,10 +7,11 @@ pub struct GcHandle<T, R: Runtime = Global> {
   phantom: PhantomData<R>,
 }
 
-impl<T, H: Runtime> Drop for GcHandle<T, H> {
+impl<T, R: Runtime> Drop for GcHandle<T, R> {
   fn drop(&mut self) {
-    if let Ok(host) = H::get() {
-      host.release(self);
+    if let Ok(rt) = R::get() {
+      rt.release(&mut self.ptr)
+        .expect("Failed to release GcHandle")
     }
   }
 }

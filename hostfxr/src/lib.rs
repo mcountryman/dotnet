@@ -1,12 +1,6 @@
 use delegate::{LoadAssemblyAndGetFunctionPointerDelegate, RuntimeDelegate};
 use dotnet_hostfxr_sys::char_t;
-use std::{
-  collections::HashMap,
-  ffi::c_void,
-  ops::DerefMut,
-  ptr::NonNull,
-  sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, ffi::c_void, ops::DerefMut, ptr::NonNull, sync::Mutex};
 use string::IntoFxrBytes;
 use symbol::{
   CloseSymbol, GetRuntimeDelegateSymbol, GetRuntimePropertiesSymbol,
@@ -25,9 +19,9 @@ mod nethost;
 mod parameters;
 mod string;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct HostFxr<'lib> {
-  handle: Arc<Mutex<NonNull<c_void>>>,
+  handle: Mutex<NonNull<c_void>>,
 
   close: CloseSymbol<'lib>,
   run_app: RunAppSymbol<'lib>,
@@ -47,7 +41,7 @@ impl<'lib> HostFxr<'lib> {
       library.get_runtime_delegate(&mut handle)?;
 
     Ok(Self {
-      handle: Arc::new(Mutex::new(handle)),
+      handle: Mutex::new(handle),
       close: library.close.clone(),
       run_app: library.run_app.clone(),
       get_runtime_delegate: library.get_runtime_delegate.clone(),
