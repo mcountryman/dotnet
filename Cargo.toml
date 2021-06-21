@@ -3,11 +3,16 @@ name = "dotnet"
 version = "0.1.0"
 edition = "2018"
 
+[features]
+default = ["host_core"]
+host_core = ["dotnet_hostfxr"]
+
 [dependencies]
+cfg-if = "1.0"
 anyhow = "1.0"
 thiserror = "1.0"
 
-dotnet_hostfxr = "*"
+dotnet_hostfxr = { version="*", optional=true }
 
 [workspace]
 members = ["hostfxr", "hostfxr_sys"]

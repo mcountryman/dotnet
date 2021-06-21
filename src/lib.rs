@@ -1,6 +1,7 @@
 pub mod class;
 pub mod exception;
 pub mod gc;
+pub mod host;
 pub mod marshal;
 pub mod method;
 pub mod types;
@@ -21,5 +22,5 @@ pub trait Host: Sized {
     // requiring return to be `Fn(..) -> ..`
     M::Fn: Method<A>;
 
-  fn release<T>(&self, handle: GcHandle<T, Self>) -> Result<M, Self::Error>;
+  fn release<T>(&self, handle: &GcHandle<T, Self>) -> Result<(), Self::Error>;
 }

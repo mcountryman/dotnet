@@ -1,11 +1,24 @@
-use crate::{class::Class, Host};
-use std::ffi::c_void;
+use std::ops::Deref;
 
-#[derive(Clone)]
+use crate::{class::Class, gc::GcHandle, Host};
+
+#[derive(Debug)]
 pub struct Exception<H: Host>(Class<H>);
 
 impl<H: Host> Exception<H> {
-  pub unsafe fn new_unchecked(ptr: *mut c_void) -> Result<Self, H::Error> {
-    Ok(Self(Class::new(ptr)?))
+  pub unsafe fn new_unchecked(handle: GcHandle<(), H>) -> Self {
+    Self(Class::new(handle))
+  }
+
+  pub fn message(&self) -> Result<String, H::Error> {
+    self.get_property("Message")
+  }
+}
+
+impl<H: Host> Deref for Exception<H> {
+  type Target = Class<H>;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
   }
 }

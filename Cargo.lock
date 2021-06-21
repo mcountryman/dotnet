@@ -184,6 +184,7 @@ name = "dotnet"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cfg-if 1.0.0",
  "dotnet_hostfxr",
  "thiserror",
 ]

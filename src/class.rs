@@ -1,22 +1,23 @@
 use crate::{
+  gc::GcHandle,
   marshal::{Marshal, MarshalError, MarshalFrom, MarshalTo},
   types::{Type, TypeId},
   Host,
 };
-use std::{ffi::c_void, marker::PhantomData, ptr::NonNull};
+use std::{ffi::c_void, marker::PhantomData};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Class<H: Host> {
-  ptr: NonNull<c_void>,
+  handle: GcHandle<(), H>,
   phantom: PhantomData<H>,
 }
 
 impl<H: Host> Class<H> {
-  pub fn new(ptr: *mut c_void) -> Result<Self, H::Error> {
-    Ok(Self {
-      ptr: NonNull::new(ptr).unwrap(),
+  pub fn new(handle: GcHandle<(), H>) -> Self {
+    Self {
+      handle,
       phantom: Default::default(),
-    })
+    }
   }
 
   pub fn get_field<M: MarshalFrom>(&self, name: &str) -> Result<M, H::Error> {

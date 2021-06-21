@@ -26,7 +26,7 @@ pub enum TypeId {
   Enumerable(Box<TypeId>),
 }
 
-#[derive(Clone)]
+#[derive(Debug)]
 pub struct Type<H: Host>(Class<H>);
 
 impl<H: Host> Type<H> {
