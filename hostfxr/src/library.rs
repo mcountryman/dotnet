@@ -1,56 +1,79 @@
-use std::convert::TryFrom;
-use std::ffi::OsStr;
-
-use dotnet_hostfxr_sys::char_t;
-
-use crate::string::{IntoBytes, IntoPtr};
 use crate::{
-  error::{HostFxrError, HostFxrResult},
+  delegate::RuntimeDelegate,
+  error::HostFxrResult,
+  nethost::get_hostfxr_path,
   parameters::HostFxrParameters,
+  string::IntoFxrBytes,
+  symbol::{
+    CloseSymbol, GetRuntimeDelegateSymbol, GetRuntimePropertiesSymbol,
+    GetRuntimePropertyValueSymbol, InitializeCommandLineSymbol, InitializeConfigSymbol,
+    RunAppSymbol, SetRuntimePropertyValueSymbol,
+  },
+  HostFxr, HostFxrError,
 };
-use crate::{nethost::get_hostfxr_path, HostFxr};
-use std::mem::MaybeUninit;
-use std::sync::Arc;
+use dotnet_hostfxr_sys::char_t;
+use libloading::Library;
+use once_cell::sync::OnceCell;
+use std::{ffi::c_void, ptr::NonNull};
 
-//
-#[cfg(unix)]
-use libloading::os::unix::{Library, Symbol};
-#[cfg(windows)]
-use libloading::os::windows::{Library, Symbol};
+static LIBRARY: OnceCell<Library> = OnceCell::new();
+static CURRENT: OnceCell<HostFxrLibrary<'static>> = OnceCell::new();
 
 /// Wrapper around hostfxr dynamic library exports.
 #[derive(Debug, Clone)]
-pub struct HostFxrLibrary {
-  pub(crate) library: Arc<Library>,
-  pub(crate) set_error_writer: Symbol<dotnet_hostfxr_sys::hostfxr_set_error_writer_fn>,
-  pub(crate) initialize_for_dotnet_command_line:
-    Symbol<dotnet_hostfxr_sys::hostfxr_initialize_for_dotnet_command_line_fn>,
-  pub(crate) initialize_for_runtime_config:
-    Symbol<dotnet_hostfxr_sys::hostfxr_initialize_for_runtime_config_fn>,
-  pub(crate) get_runtime_property_value:
-    Symbol<dotnet_hostfxr_sys::hostfxr_get_runtime_property_value_fn>,
-  pub(crate) set_runtime_property_value:
-    Symbol<dotnet_hostfxr_sys::hostfxr_set_runtime_property_value_fn>,
-  pub(crate) get_runtime_properties:
-    Symbol<dotnet_hostfxr_sys::hostfxr_get_runtime_properties_fn>,
-  pub(crate) run_app: Symbol<dotnet_hostfxr_sys::hostfxr_run_app_fn>,
-  pub(crate) get_runtime_delegate:
-    Symbol<dotnet_hostfxr_sys::hostfxr_get_runtime_delegate_fn>,
-  pub(crate) close: Symbol<dotnet_hostfxr_sys::hostfxr_close_fn>,
+pub struct HostFxrLibrary<'lib> {
+  pub close: CloseSymbol<'lib>,
+  pub run_app: RunAppSymbol<'lib>,
+  pub initialize_config: InitializeConfigSymbol<'lib>,
+  pub initialize_command_line: InitializeCommandLineSymbol<'lib>,
+  pub get_runtime_delegate: GetRuntimeDelegateSymbol<'lib>,
+  pub set_runtime_property: SetRuntimePropertyValueSymbol<'lib>,
+  pub get_runtime_property: GetRuntimePropertyValueSymbol<'lib>,
+  pub get_runtime_properties: GetRuntimePropertiesSymbol<'lib>,
 }
 
-impl HostFxrLibrary {
-  /// Detect and load hostfxr library from environment
-  pub fn new() -> HostFxrResult<HostFxrLibrary> {
-    Self::from_path(get_hostfxr_path()?)
+impl HostFxrLibrary<'static> {
+  pub fn get() -> HostFxrResult<&'static Self> {
+    if let Some(current) = CURRENT.get() {
+      return Ok(current);
+    }
+
+    let library = Self::get_library()?;
+    let library = HostFxrLibrary::from_library(library)?;
+
+    Ok(match CURRENT.try_insert(library) {
+      Ok(current) => current,
+      Err((current, _)) => &current,
+    })
   }
 
-  /// Load hostfxr library from supplied path
-  ///
-  /// # Arguments
-  /// * `path` - Path to hostfxr library on system.
-  pub fn from_path<P: AsRef<OsStr>>(path: P) -> HostFxrResult<HostFxrLibrary> {
-    Self::try_from(Arc::new(Library::new(path)?))
+  fn get_library() -> HostFxrResult<&'static Library> {
+    if let Some(library) = LIBRARY.get() {
+      return Ok(library);
+    }
+
+    let library = get_hostfxr_path()?;
+    let library = Library::new(&library)?;
+
+    Ok(match LIBRARY.try_insert(library) {
+      Ok(library) => library,
+      Err((library, _)) => &library,
+    })
+  }
+}
+
+impl<'lib> HostFxrLibrary<'lib> {
+  pub fn from_library(library: &Library) -> HostFxrResult<HostFxrLibrary<'_>> {
+    Ok(HostFxrLibrary {
+      close: CloseSymbol::new(library)?,
+      run_app: RunAppSymbol::new(library)?,
+      initialize_config: InitializeConfigSymbol::new(library)?,
+      initialize_command_line: InitializeCommandLineSymbol::new(library)?,
+      get_runtime_delegate: GetRuntimeDelegateSymbol::new(library)?,
+      set_runtime_property: SetRuntimePropertyValueSymbol::new(library)?,
+      get_runtime_property: GetRuntimePropertyValueSymbol::new(library)?,
+      get_runtime_properties: GetRuntimePropertiesSymbol::new(library)?,
+    })
   }
 
   /// Initializes the hosting components for a dotnet command line running an application
@@ -73,36 +96,13 @@ impl HostFxrLibrary {
   ) -> HostFxrResult<HostFxr>
   where
     A: IntoIterator<Item = I>,
-    I: IntoBytes<char_t>,
+    I: IntoFxrBytes<char_t>,
   {
-    let initialize_for_dotnet_command_line =
-      self.initialize_for_dotnet_command_line.clone();
-    let initialize_for_dotnet_command_line =
-      initialize_for_dotnet_command_line.lift_option().unwrap();
-
-    // Convert args to leaky ptr of ptrs
-    let (argc, argv) = unsafe {
-      let mut vec: Vec<*const _> = args.into_iter().map(|item| item.into_ptr()).collect();
-      let len = vec.len() as _;
-      let ptr = vec.as_mut_ptr();
-
-      std::mem::forget(vec);
-
-      (len, ptr)
-    };
-
-    let mut handle = MaybeUninit::zeroed();
-    let flag = unsafe {
-      initialize_for_dotnet_command_line(
-        argc,
-        argv,
-        parameters.into_ptr(),
-        handle.as_mut_ptr(),
-      )
-    };
-
-    HostFxrError::from_status(flag)?;
-    HostFxr::new(unsafe { handle.assume_init() }, self.clone())
+    let handle = self.initialize_command_line.invoke(args, parameters)?;
+    match handle {
+      Some(handle) => HostFxr::new(handle, self),
+      None => Err(HostFxrError::BadHandle),
+    }
   }
 
   /// Initializes the hosting components using a .runtimeconfig.json file
@@ -125,58 +125,21 @@ impl HostFxrLibrary {
     parameters: Option<HostFxrParameters>,
   ) -> HostFxrResult<HostFxr>
   where
-    R: IntoBytes<char_t>,
+    R: IntoFxrBytes<char_t>,
   {
-    let initialize_for_runtime_config = self.initialize_for_runtime_config.clone();
-    let initialize_for_runtime_config =
-      initialize_for_runtime_config.lift_option().unwrap();
-
-    let mut handle = MaybeUninit::zeroed();
-
-    let flag = unsafe {
-      initialize_for_runtime_config(
-        runtime_config.into_ptr(),
-        parameters.into_ptr(),
-        handle.as_mut_ptr(),
-      )
-    };
-
-    HostFxrError::from_status(flag)?;
-    HostFxr::new(unsafe { handle.assume_init() }, self.clone())
-  }
-}
-
-impl TryFrom<Arc<Library>> for HostFxrLibrary {
-  type Error = HostFxrError;
-
-  fn try_from(library: Arc<Library>) -> Result<Self, Self::Error> {
-    unsafe {
-      let set_error_writer = library.get(b"hostfxr_set_error_writer")?;
-      let initialize_for_dotnet_command_line =
-        library.get(b"hostfxr_initialize_for_dotnet_command_line")?;
-      let initialize_for_runtime_config =
-        library.get(b"hostfxr_initialize_for_runtime_config")?;
-      let get_runtime_property_value =
-        library.get(b"hostfxr_get_runtime_property_value")?;
-      let set_runtime_property_value =
-        library.get(b"hostfxr_set_runtime_property_value")?;
-      let get_runtime_properties = library.get(b"hostfxr_get_runtime_properties")?;
-      let run_app = library.get(b"hostfxr_run_app")?;
-      let get_runtime_delegate = library.get(b"hostfxr_get_runtime_delegate")?;
-      let close = library.get(b"hostfxr_close")?;
-
-      Ok(Self {
-        library,
-        set_error_writer,
-        initialize_for_dotnet_command_line,
-        initialize_for_runtime_config,
-        get_runtime_property_value,
-        set_runtime_property_value,
-        get_runtime_properties,
-        run_app,
-        get_runtime_delegate,
-        close,
-      })
+    let handle = self.initialize_config.invoke(runtime_config, parameters)?;
+    match handle {
+      Some(handle) => HostFxr::new(handle, self),
+      None => Err(HostFxrError::BadHandle),
     }
+  }
+
+  pub fn get_runtime_delegate<D>(&self, handle: &mut NonNull<c_void>) -> HostFxrResult<D>
+  where
+    D: RuntimeDelegate,
+  {
+    Ok(D::from_native(
+      self.get_runtime_delegate.invoke::<D>(handle)?,
+    ))
   }
 }

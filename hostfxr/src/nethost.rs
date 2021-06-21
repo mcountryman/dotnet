@@ -1,5 +1,4 @@
-use crate::error::HostFxrError;
-use crate::string::IntoString;
+use crate::{error::HostFxrError, string::IntoFxrString};
 use std::ptr::null_mut;
 
 /// MAX_PATH defines buffer size supplied to nethost.  This should be more than enough
@@ -24,7 +23,7 @@ pub fn get_hostfxr_path() -> Result<String, HostFxrError> {
 
   HostFxrError::from_status(status)?;
 
-  Ok(buf[..buf_len as usize - 1].into_string())
+  Ok(buf[..buf_len as usize - 1].into_fxr_string())
 }
 
 #[cfg(test)]

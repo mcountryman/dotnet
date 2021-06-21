@@ -2,34 +2,29 @@
 //!
 //! Due to `hostfxr` APIs using `c_wchar` and `c_char` in different builds an abstraction
 //! for both are needed.  
-use crate::parameters::HostFxrParameters;
-use dotnet_hostfxr_sys::hostfxr_initialize_parameters;
-use std::mem::size_of;
-use std::mem::MaybeUninit;
-use std::os::raw::c_char;
-use std::slice::from_raw_parts;
+use std::{os::raw::c_char, slice::from_raw_parts};
 
 /// A value-to-vec conversion with items of variable size.
-pub trait IntoBytes<T> {
+pub trait IntoFxrBytes<T> {
   /// Performs the conversion.
-  fn into_bytes(self) -> Vec<T>;
+  fn into_fxr_bytes(self) -> Vec<T>;
 }
 
 /// A value-to-pointer conversion with items of variable size.
-pub trait IntoPtr<T> {
+pub trait IntoFxrPtr<T> {
   /// Performs the conversion.
-  unsafe fn into_ptr(self) -> *const T;
+  unsafe fn into_fxr_ptr(self) -> *const T;
 }
 
 /// Convert to string, consuming value.
-pub trait IntoString<'a> {
+pub trait IntoFxrString<'a> {
   /// Performs the conversion.
-  fn into_string(self) -> String;
+  fn into_fxr_string(self) -> String;
 }
 
-impl<'a> IntoString<'a> for &'a [c_char] {
+impl<'a> IntoFxrString<'a> for &'a [c_char] {
   /// Copies nul terminated `c_char` ptr into utf8 decoded string.
-  fn into_string(self) -> String {
+  fn into_fxr_string(self) -> String {
     let len = self.len();
     let buf = unsafe { from_raw_parts(self.as_ptr() as *const _, len) };
 
@@ -37,13 +32,13 @@ impl<'a> IntoString<'a> for &'a [c_char] {
   }
 }
 
-impl<'a> IntoString<'a> for *const c_char {
+impl<'a> IntoFxrString<'a> for *const c_char {
   /// Copies nul terminated `c_char` ptr into utf8 decoded string.
   ///
   /// # Safety
   /// If supplied ptr is not nul terminated, nul terminator loop will continue forever or
   /// until segfault.
-  fn into_string(self) -> String {
+  fn into_fxr_string(self) -> String {
     let len = (0..).position(|i| unsafe { *self.offset(i) == 0 }).unwrap();
     let buf = unsafe {
       let mut v = Vec::with_capacity(len);
@@ -58,13 +53,13 @@ impl<'a> IntoString<'a> for *const c_char {
 }
 
 #[cfg(windows)]
-impl<'a> IntoString<'a> for *const u16 {
+impl<'a> IntoFxrString<'a> for *const u16 {
   /// Copies nul terminated `c_wchar` ptr into wtf8 decoded string.
   ///
   /// # Safety
   /// If supplied ptr is not nul terminated, nul terminator loop will continue forever or
   /// until segfault.
-  fn into_string(self) -> String {
+  fn into_fxr_string(self) -> String {
     let len = (0..).position(|i| unsafe { *self.offset(i) == 0 }).unwrap();
     let buf = unsafe {
       let mut v = Vec::with_capacity(len);
@@ -75,13 +70,13 @@ impl<'a> IntoString<'a> for *const u16 {
       v
     };
 
-    buf.into_string()
+    buf.into_fxr_string()
   }
 }
 
 #[cfg(windows)]
-impl<'a> IntoString<'a> for &'a [u16] {
-  fn into_string(self) -> String {
+impl<'a> IntoFxrString<'a> for &'a [u16] {
+  fn into_fxr_string(self) -> String {
     use std::os::windows::prelude::*;
 
     let buf = std::ffi::OsString::from_wide(self);
@@ -93,14 +88,14 @@ impl<'a> IntoString<'a> for &'a [u16] {
 }
 
 #[cfg(windows)]
-impl<'a> IntoString<'a> for Vec<u16> {
-  fn into_string(self) -> String {
-    self.as_slice().into_string()
+impl<'a> IntoFxrString<'a> for Vec<u16> {
+  fn into_fxr_string(self) -> String {
+    self.as_slice().into_fxr_string()
   }
 }
 
-impl<R: AsRef<str>> IntoBytes<c_char> for R {
-  fn into_bytes(self) -> Vec<c_char> {
+impl<R: AsRef<str>> IntoFxrBytes<c_char> for R {
+  fn into_fxr_bytes(self) -> Vec<c_char> {
     self
       .as_ref()
       .as_bytes()
@@ -112,8 +107,8 @@ impl<R: AsRef<str>> IntoBytes<c_char> for R {
 }
 
 #[cfg(windows)]
-impl<R: AsRef<str>> IntoBytes<u16> for R {
-  fn into_bytes(self) -> Vec<u16> {
+impl<R: AsRef<str>> IntoFxrBytes<u16> for R {
+  fn into_fxr_bytes(self) -> Vec<u16> {
     use std::os::windows::prelude::*;
 
     let buf = self.as_ref();
@@ -124,9 +119,9 @@ impl<R: AsRef<str>> IntoBytes<u16> for R {
   }
 }
 
-impl<R: IntoBytes<c_char>> IntoPtr<c_char> for R {
-  unsafe fn into_ptr(self) -> *const c_char {
-    let buf = self.into_bytes();
+impl<R: IntoFxrBytes<c_char>> IntoFxrPtr<c_char> for R {
+  unsafe fn into_fxr_ptr(self) -> *const c_char {
+    let buf = self.into_fxr_bytes();
     let ptr = buf.as_ptr();
 
     std::mem::forget(buf);
@@ -136,32 +131,12 @@ impl<R: IntoBytes<c_char>> IntoPtr<c_char> for R {
 }
 
 #[cfg(windows)]
-impl<R: IntoBytes<u16>> IntoPtr<u16> for R {
-  unsafe fn into_ptr(self) -> *const u16 {
-    let buf = self.into_bytes();
+impl<R: IntoFxrBytes<u16>> IntoFxrPtr<u16> for R {
+  unsafe fn into_fxr_ptr(self) -> *const u16 {
+    let buf = self.into_fxr_bytes();
     let ptr = buf.as_ptr();
 
     std::mem::forget(buf);
-
-    ptr
-  }
-}
-
-impl<'a> IntoPtr<hostfxr_initialize_parameters> for Option<HostFxrParameters<'a>> {
-  unsafe fn into_ptr(self) -> *const hostfxr_initialize_parameters {
-    let parameters = match self {
-      Some(parameters) => MaybeUninit::new(hostfxr_initialize_parameters {
-        size: size_of::<hostfxr_initialize_parameters>() as u64,
-        host_path: parameters.host_path.into_ptr(),
-        dotnet_root: parameters.dotnet_root.into_ptr(),
-      }),
-      None => MaybeUninit::zeroed(),
-    };
-
-    let ptr = parameters.as_ptr();
-
-    #[allow(clippy::forget_copy)]
-    std::mem::forget(parameters);
 
     ptr
   }
@@ -185,7 +160,7 @@ mod tests {
     for (buf, expected) in cases {
       let buf = unsafe { slice::from_raw_parts(buf.as_ptr() as *const i8, buf.len()) };
 
-      let actual = buf.into_string();
+      let actual = buf.into_fxr_string();
       assert_eq!(actual, expected);
     }
   }
@@ -202,7 +177,7 @@ mod tests {
     ];
 
     for (buf, expected) in cases {
-      let actual = buf.into_string();
+      let actual = buf.into_fxr_string();
       assert_eq!(actual, expected);
     }
   }
@@ -212,7 +187,7 @@ mod tests {
     let cases = vec!["Hello World", "Hello World\0", "Hello \0World", "\0", ""];
 
     for case in cases {
-      let buf: Vec<c_char> = case.into_bytes();
+      let buf: Vec<c_char> = case.into_fxr_bytes();
       let actual = buf.into_iter().position(|ch| ch == 0).unwrap();
       let expected = case
         .chars()
@@ -233,7 +208,7 @@ mod tests {
     let cases = vec!["Hello World", "Hello World\0", "Hello \0World", "\0", ""];
 
     for case in cases {
-      let buf: Vec<u16> = case.into_bytes();
+      let buf: Vec<u16> = case.into_fxr_bytes();
       let actual = buf.iter().position(|ch| *ch == 0).unwrap();
       let expected = case
         .chars()
@@ -260,7 +235,7 @@ mod tests {
 
     for (buf, expected) in cases {
       let buf = buf.as_ptr() as *const c_char;
-      let actual = buf.into_string();
+      let actual = buf.into_fxr_string();
 
       assert_eq!(actual, expected);
     }
@@ -277,7 +252,7 @@ mod tests {
 
     for (buf, expected) in cases {
       let buf = buf.as_ptr();
-      let actual = buf.into_string();
+      let actual = buf.into_fxr_string();
 
       assert_eq!(actual, expected);
     }

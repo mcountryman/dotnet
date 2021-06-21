@@ -1,6 +1,8 @@
-use std::error::Error;
-use std::fmt::{Display, Formatter};
-use std::num::TryFromIntError;
+use std::{
+  error::Error,
+  fmt::{Display, Formatter},
+  num::TryFromIntError,
+};
 
 pub type HostFxrResult<T> = Result<T, HostFxrError>;
 
@@ -14,6 +16,9 @@ pub enum HostFxrError {
   MissingHostPath,
   MissingDotnetRoot,
   TryFromIntError(TryFromIntError),
+
+  BadHandle,
+  PoisonedHandle,
 
   // Failure
   InvalidArgFailure,

@@ -1,12 +1,21 @@
-use dotnet_hostfxr_sys::{char_t, hostfxr_delegate_type, hostfxr_handle};
-use std::mem::MaybeUninit;
+use delegate::{LoadAssemblyAndGetFunctionPointerDelegate, RuntimeDelegate};
+use dotnet_hostfxr_sys::char_t;
 use std::{
   collections::HashMap,
-  ptr::{null, null_mut},
+  ffi::c_void,
+  ops::DerefMut,
+  ptr::NonNull,
+  sync::{Arc, Mutex},
 };
-use string::{IntoBytes, IntoPtr, IntoString};
+use string::IntoFxrBytes;
+use symbol::{
+  CloseSymbol, GetRuntimeDelegateSymbol, GetRuntimePropertiesSymbol,
+  GetRuntimePropertyValueSymbol, RunAppSymbol, SetRuntimePropertyValueSymbol,
+};
 
+pub mod delegate;
 pub mod error;
+pub mod symbol;
 pub use error::*;
 
 pub mod library;
@@ -16,42 +25,35 @@ mod nethost;
 mod parameters;
 mod string;
 
-type LoadAssemblyAndGetFunctionPointerFn = unsafe extern "C" fn(
-  assembly_path: *const char_t,
-  type_name: *const char_t,
-  method_name: *const char_t,
-  delegate_type_name: *const char_t,
-  reserved: *mut ::std::os::raw::c_void,
-  delegate: *mut *mut ::std::os::raw::c_void,
-) -> ::std::os::raw::c_int;
+#[derive(Debug, Clone)]
+pub struct HostFxr<'lib> {
+  handle: Arc<Mutex<NonNull<c_void>>>,
 
-#[derive(Debug)]
-pub struct HostFxr {
-  handle: hostfxr_handle,
-  library: HostFxrLibrary,
-
-  get_function_pointer_fn: dotnet_hostfxr_sys::get_function_pointer_fn,
-  load_assembly_and_get_function_pointer: LoadAssemblyAndGetFunctionPointerFn,
+  close: CloseSymbol<'lib>,
+  run_app: RunAppSymbol<'lib>,
+  get_runtime_delegate: GetRuntimeDelegateSymbol<'lib>,
+  set_runtime_property: SetRuntimePropertyValueSymbol<'lib>,
+  get_runtime_property: GetRuntimePropertyValueSymbol<'lib>,
+  get_runtime_properties: GetRuntimePropertiesSymbol<'lib>,
+  load_assembly_and_get_function_pointer: LoadAssemblyAndGetFunctionPointerDelegate,
 }
 
-impl HostFxr {
-  pub fn new(handle: hostfxr_handle, library: HostFxrLibrary) -> HostFxrResult<Self> {
-    let get_function_pointer_fn = Self::get_runtime_delegate(
-      handle,
-      &library,
-      dotnet_hostfxr_sys::hostfxr_delegate_type_hdt_get_function_pointer,
-    )?;
-
-    let load_assembly_and_get_function_pointer = Self::get_runtime_delegate(
-      handle,
-      &library,
-      dotnet_hostfxr_sys::hostfxr_delegate_type_hdt_load_assembly_and_get_function_pointer,
-    )?;
+impl<'lib> HostFxr<'lib> {
+  pub fn new(
+    mut handle: NonNull<c_void>,
+    library: &HostFxrLibrary<'lib>,
+  ) -> HostFxrResult<Self> {
+    let load_assembly_and_get_function_pointer =
+      library.get_runtime_delegate(&mut handle)?;
 
     Ok(Self {
-      handle,
-      library,
-      get_function_pointer_fn,
+      handle: Arc::new(Mutex::new(handle)),
+      close: library.close.clone(),
+      run_app: library.run_app.clone(),
+      get_runtime_delegate: library.get_runtime_delegate.clone(),
+      set_runtime_property: library.set_runtime_property.clone(),
+      get_runtime_property: library.get_runtime_property.clone(),
+      get_runtime_properties: library.get_runtime_properties.clone(),
       load_assembly_and_get_function_pointer,
     })
   }
@@ -69,7 +71,7 @@ impl HostFxr {
   /// use dotnet_hostfxr::HostFxr;
   ///
   /// fn add_probing_directory<P: AsRef<str>>(
-  ///   ctx: HostFxr,
+  ///   mut ctx: HostFxr,
   ///   path: P,
   /// ) -> Result<(), Box<dyn Error>> {
   ///   const NAME: &str = "PROBING_DIRECTORIES";
@@ -87,22 +89,17 @@ impl HostFxr {
   /// ```
   pub fn set_runtime_property_value<N, V>(&self, name: N, value: V) -> HostFxrResult<()>
   where
-    N: IntoBytes<char_t>,
-    V: IntoBytes<char_t>,
+    N: IntoFxrBytes<char_t>,
+    V: IntoFxrBytes<char_t>,
   {
-    let set_runtime_property_value = self.library.set_runtime_property_value.clone();
-    let set_runtime_property_value = set_runtime_property_value.lift_option().unwrap();
+    let mut handle = self
+      .handle
+      .lock()
+      .map_err(|_| HostFxrError::PoisonedHandle)?;
 
-    let name = name.into_bytes();
-    let name = name.as_ptr();
-
-    let value = value.into_bytes();
-    let value = value.as_ptr();
-
-    let flag = unsafe { set_runtime_property_value(self.handle, name, value) };
-    HostFxrError::from_status(flag)?;
-
-    Ok(())
+    self
+      .set_runtime_property
+      .invoke(handle.deref_mut(), name, value)
   }
 
   /// Gets the runtime property value by name
@@ -114,7 +111,7 @@ impl HostFxr {
   /// ```
   /// use dotnet_hostfxr::HostFxr;
   ///
-  /// fn dump_property(ctx: HostFxr) {
+  /// fn dump_property(mut ctx: HostFxr) {
   ///    println!(
   ///       "`RUNTIME_IDENTIFIER` = `{}`",
   ///       ctx.get_runtime_property("RUNTIME_IDENTIFIER").unwrap()
@@ -124,22 +121,14 @@ impl HostFxr {
   /// ```
   pub fn get_runtime_property<N>(&self, name: N) -> HostFxrResult<String>
   where
-    N: IntoBytes<char_t>,
+    N: IntoFxrBytes<char_t>,
   {
-    let get_runtime_property_value = self.library.get_runtime_property_value.clone();
-    let get_runtime_property_value = get_runtime_property_value.lift_option().unwrap();
+    let mut handle = self
+      .handle
+      .lock()
+      .map_err(|_| HostFxrError::PoisonedHandle)?;
 
-    let name = name.into_bytes();
-    let name = name.as_ptr();
-    let mut value: *const char_t = null();
-
-    let flag = unsafe {
-      get_runtime_property_value(self.handle, name, &mut value as *mut *const _)
-    };
-
-    HostFxrError::from_status(flag)?;
-
-    Ok(value.into_string())
+    self.get_runtime_property.invoke(handle.deref_mut(), name)
   }
 
   /// Get all the runtime properties
@@ -148,45 +137,19 @@ impl HostFxr {
   /// ```
   /// use dotnet_hostfxr::HostFxr;
   ///
-  /// fn dump_properties(ctx: HostFxr) {
+  /// fn dump_properties(mut ctx: HostFxr) {
   ///   for (name, value) in ctx.get_runtime_properties().unwrap() {
   ///     println!("`{}` = `{}`", name, value);
   ///   }
   /// }
   /// ```
   pub fn get_runtime_properties(&self) -> HostFxrResult<HashMap<String, String>> {
-    let get_runtime_properties = self.library.get_runtime_properties.clone();
-    let get_runtime_properties = get_runtime_properties.lift_option().unwrap();
+    let mut handle = self
+      .handle
+      .lock()
+      .map_err(|_| HostFxrError::PoisonedHandle)?;
 
-    let mut properties = HashMap::new();
-
-    let mut count: u64 = 2048;
-    let mut keys = vec![null(); count as usize];
-    let mut values = vec![null(); count as usize];
-
-    let flag = unsafe {
-      get_runtime_properties(
-        self.handle,
-        &mut count as *mut _,
-        keys.as_mut_ptr(),
-        values.as_mut_ptr(),
-      )
-    };
-
-    HostFxrError::from_status(flag)?;
-
-    keys
-      .into_iter()
-      .zip(values)
-      .take(count as usize)
-      .for_each(|(key, value)| {
-        let key = key.into_string();
-        let value = value.into_string();
-
-        properties.insert(key, value);
-      });
-
-    Ok(properties)
+    self.get_runtime_properties.invoke(handle.deref_mut())
   }
 
   /// Load CoreCLR and run the application for an initialized host context
@@ -200,8 +163,8 @@ impl HostFxr {
   /// use dotnet_hostfxr::HostFxrLibrary;
   ///
   /// fn run_app<A: AsRef<str>>(exe_path: A) {
-  ///   let hostfxr = HostFxrLibrary::new().expect("Failed to load hostfxr");
-  ///   let hostfxr = hostfxr
+  ///   let hostfxr = HostFxrLibrary::get().expect("Failed to initialize hostfxr");
+  ///   let mut hostfxr = hostfxr
   ///     .initialize_command_line(
   ///       &[exe_path.as_ref()],
   ///       None,
@@ -213,12 +176,12 @@ impl HostFxr {
   ///
   /// ```
   pub fn run_app(&self) -> HostFxrResult<()> {
-    let run_app = self.library.run_app.clone();
-    let run_app = run_app.lift_option().unwrap();
+    let mut handle = self
+      .handle
+      .lock()
+      .map_err(|_| HostFxrError::PoisonedHandle)?;
 
-    let flag = unsafe { run_app(self.handle) };
-
-    HostFxrError::from_status(flag)
+    self.run_app.invoke(handle.deref_mut())
   }
 
   /// Calling this function will load the specified assembly in isolation (into its own
@@ -245,7 +208,7 @@ impl HostFxr {
   ///
   /// type AddFn = extern "C" fn(a: i32, b: i32) -> i32;
   ///
-  /// fn get_add_fn(ctx: HostFxr) -> AddFn {
+  /// fn get_add_fn(mut ctx: HostFxr) -> AddFn {
   ///   ctx.load_assembly_and_get_delegate(
   ///     std::fs::canonicalize("../bridge/bin/Debug/net5.0/bridge.dll")
   ///       .unwrap()
@@ -265,54 +228,48 @@ impl HostFxr {
     delegate_type_name: D,
   ) -> HostFxrResult<F>
   where
-    A: IntoBytes<char_t>,
-    T: IntoBytes<char_t>,
-    M: IntoBytes<char_t>,
-    D: IntoBytes<char_t>,
+    A: IntoFxrBytes<char_t>,
+    T: IntoFxrBytes<char_t>,
+    M: IntoFxrBytes<char_t>,
+    D: IntoFxrBytes<char_t>,
   {
-    let native = self.load_assembly_and_get_function_pointer;
-    let mut delegate = MaybeUninit::<F>::zeroed();
-    let delegate_ptr = delegate.as_mut_ptr() as *mut _ as *mut *mut _;
+    let guard = self.handle.lock().unwrap();
+    let delegate = self.load_assembly_and_get_function_pointer.invoke(
+      assembly_path,
+      type_name,
+      method_name,
+      delegate_type_name,
+    )?;
 
-    let flag = unsafe {
-      native(
-        assembly_path.into_ptr(),
-        type_name.into_ptr(),
-        method_name.into_ptr(),
-        delegate_type_name.into_ptr(),
-        null_mut(),
-        delegate_ptr,
-      )
-    };
+    // Attempt to keep rustc from optimizing away our lock
+    std::mem::drop(guard);
 
-    HostFxrError::from_status(flag)?;
-
-    Ok(unsafe { delegate.assume_init() })
+    Ok(delegate)
   }
 
-  fn get_runtime_delegate<F>(
-    handle: hostfxr_handle,
-    library: &HostFxrLibrary,
-    kind: hostfxr_delegate_type,
-  ) -> HostFxrResult<F> {
-    let get_runtime_delegate = library.get_runtime_delegate.clone();
-    let get_runtime_delegate = get_runtime_delegate.lift_option().unwrap();
+  pub fn get_runtime_delegate<D>(&self) -> HostFxrResult<D>
+  where
+    D: RuntimeDelegate,
+  {
+    let mut handle = self
+      .handle
+      .lock()
+      .map_err(|_| HostFxrError::PoisonedHandle)?;
 
-    let mut delegate = MaybeUninit::<F>::uninit();
-    let delegate_ptr = delegate.as_mut_ptr() as *mut _ as *mut *mut _;
-    let flag = unsafe { get_runtime_delegate(handle, kind, delegate_ptr) };
-
-    HostFxrError::from_status(flag)?;
-
-    Ok(unsafe { delegate.assume_init() })
+    Ok(D::from_native(
+      self.get_runtime_delegate.invoke::<D>(handle.deref_mut())?,
+    ))
   }
 }
 
-impl Drop for HostFxr {
-  fn drop(&mut self) {
-    let close = self.library.close.clone();
-    let close = close.lift_option().unwrap();
+unsafe impl Send for HostFxr<'_> {}
+unsafe impl Sync for HostFxr<'_> {}
 
-    unsafe { close(self.handle) };
+impl Drop for HostFxr<'_> {
+  fn drop(&mut self) {
+    self
+      .close
+      .invoke(self.handle.lock().expect("Poisoned handle").deref_mut())
+      .expect("Failed to close runtime handle");
   }
 }

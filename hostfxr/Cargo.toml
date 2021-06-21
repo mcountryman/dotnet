@@ -5,9 +5,9 @@ authors = ["Marvin Countryman <me@maar.vin>"]
 edition = "2018"
 
 [dependencies]
+once_cell = "1.8"
 libloading = "^0.6"
-lazy_static = "^1.4"
 dotnet_hostfxr_sys = "^0.1"
 
 [dev-dependencies]
-wchar = "^0.6"
+wchar = "^0.10"
