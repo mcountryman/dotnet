@@ -3,11 +3,23 @@ using System.Runtime.InteropServices;
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct Bridge {
+
+  [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+  public unsafe delegate IntPtr ReleaseDelegate(IntPtr handle);
+
+  [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+  public unsafe delegate int GetMethodDelegate(
+    [MarshalAs(UnmanagedType.LPUTF8Str)]
+  string path,
+    int* types,
+    ushort typesLength
+  );
+
   IntPtr Release;
   IntPtr GetMethod;
   int Test;
 
-  public static BridgeResult ReleaseImp(IntPtr handle) {
+  public static IntPtr ReleaseImp(IntPtr handle) {
     Console.WriteLine("ReleaseImp(IntPtr handle)");
 
     throw new NotImplementedException();
@@ -27,20 +39,15 @@ public unsafe struct Bridge {
   public static IntPtr GetBridge() {
     Console.WriteLine("GetBridge()");
 
-    var release = Marshal.GetFunctionPointerForDelegate((ReleaseDelegate)ReleaseImp);
-    Console.WriteLine("release: 0x{0:X}", release);
-
     var bridge = new Bridge {
-      Release = release,
+      Release = Marshal.GetFunctionPointerForDelegate((ReleaseDelegate)ReleaseImp),
       GetMethod = Marshal.GetFunctionPointerForDelegate((GetMethodDelegate)GetMethodImp),
       Test = 69420
     };
 
-    var handle = GCHandle.Alloc(bridge, GCHandleType.Pinned);
-
-    Console.WriteLine("handle: 0x{0:X}", (IntPtr)handle);
-
-    return (IntPtr)handle;
+    var handle = Marshal.AllocHGlobal(sizeof(Bridge));
+    Marshal.StructureToPtr(bridge, handle, false);
+    return handle;
   }
 }
 
@@ -105,14 +112,3 @@ public struct BridgeResult {
 
 [UnmanagedFunctionPointer(CallingConvention.StdCall)]
 public delegate IntPtr GetBridgeDelegate();
-
-[UnmanagedFunctionPointer(CallingConvention.StdCall)]
-public unsafe delegate int GetMethodDelegate(
-  [MarshalAs(UnmanagedType.LPUTF8Str)]
-  string path,
-  int* types,
-  ushort typesLength
-);
-
-[UnmanagedFunctionPointer(CallingConvention.StdCall)]
-public unsafe delegate BridgeResult ReleaseDelegate(IntPtr handle);

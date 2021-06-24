@@ -53,13 +53,7 @@ impl<'rt, R: Runtime> Bridge<'rt, R> {
       None => return None,
     };
 
-    println!("release: {:#X}", imp.release as usize);
-    println!("test: {}", imp.test as usize);
-
-    println!(
-      "host: {:#X}",
-      imp.as_ref() as *const ffi::BridgeImpl as usize
-    );
+    println!("test: {}", imp.test);
 
     Some(Self {
       imp,
@@ -76,7 +70,7 @@ impl<'rt, R: Runtime> Bridge<'rt, R> {
     let mut types = ManuallyDrop::new(types);
 
     unsafe {
-      (self.imp.get_method_fn())(
+      (*self.imp.get_method)(
         path.as_mut_ptr(),
         path.len() as _,
         types.as_mut_ptr(),
@@ -88,7 +82,10 @@ impl<'rt, R: Runtime> Bridge<'rt, R> {
   }
 
   pub fn release<T>(&self, handle: &mut NonNull<T>) -> Result<(), BridgeError> {
-    unsafe { (self.imp.release_fn())(handle.as_ptr() as _).into_result() }
+    println!("release(..)");
+    println!("result: {}", unsafe { (*self.imp.release)(0) });
+
+    Ok(())
   }
 }
 
@@ -96,7 +93,7 @@ mod ffi {
   use super::BridgeError;
   use crate::types::TypeId;
 
-  pub type ReleaseFn = unsafe extern "stdcall" fn(handle: usize) -> BridgeResult<()>;
+  pub type ReleaseFn = unsafe extern "stdcall" fn(handle: usize) -> usize;
   pub type GetMethodFn = unsafe extern "stdcall" fn(
     path: *mut u8,
     path_len: u32,
@@ -107,19 +104,9 @@ mod ffi {
   #[repr(C)]
   #[derive(Clone)]
   pub struct BridgeImpl {
-    pub release: usize,
-    pub get_method: usize,
+    pub release: *mut ReleaseFn,
+    pub get_method: *mut GetMethodFn,
     pub test: i32,
-  }
-
-  impl BridgeImpl {
-    pub unsafe fn release_fn(&self) -> &ReleaseFn {
-      &*(self.release as *const _)
-    }
-
-    pub unsafe fn get_method_fn(&self) -> &GetMethodFn {
-      &*(self.get_method as *const _)
-    }
   }
 
   unsafe impl Send for BridgeImpl {}
